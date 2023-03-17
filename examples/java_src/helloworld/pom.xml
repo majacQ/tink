@@ -54,7 +54,7 @@
     <dependency>
       <groupId>com.google.crypto.tink</groupId>
       <artifactId>tink-gcpkms</artifactId>
-      <version>HEAD-SNAPSHOT</version>
+      <version>1.8.0</version>
     </dependency>
   </dependencies>
 
