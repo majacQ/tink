@@ -28,11 +28,12 @@ import com.google.common.base.Splitter;
 import com.google.crypto.tink.Aead;
 import com.google.crypto.tink.KmsClient;
 import com.google.crypto.tink.KmsClients;
-import com.google.crypto.tink.subtle.Validators;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import javax.annotation.Nullable;
 
 /**
  * An implementation of {@link KmsClient} for <a href="https://aws.amazon.com/kms/">AWS KMS</a>.
@@ -44,23 +45,22 @@ public final class AwsKmsClient implements KmsClient {
   /** The prefix of all keys stored in AWS KMS. */
   public static final String PREFIX = "aws-kms://";
 
-  private String keyUri;
-  private AWSCredentialsProvider provider;
+  @Nullable private AWSKMS awsKms;
+  @Nullable private String keyUri;
+  @Nullable private AWSCredentialsProvider provider;
 
   /**
    * Constructs a generic AwsKmsClient that is not bound to any specific key.
    *
-   * @deprecated use {@link #register}
+   * This constructor should not be used. We recommend to register the client instead.
    */
-  @Deprecated
   public AwsKmsClient() {}
 
   /**
    * Constructs a specific AwsKmsClient that is bound to a single key identified by {@code uri}.
    *
-   * @deprecated use {@link #register}
+   * This constructor should not be used. We recommend to register the client instead.
    */
-  @Deprecated
   public AwsKmsClient(String uri) {
     if (!uri.toLowerCase(Locale.US).startsWith(PREFIX)) {
       throw new IllegalArgumentException("key URI must starts with " + PREFIX);
@@ -69,7 +69,7 @@ public final class AwsKmsClient implements KmsClient {
   }
 
   /**
-   * @return @return true either if this client is a generic one and uri starts with {@link
+   * @return true either if this client is a generic one and uri starts with {@link
    *     AwsKmsClient#PREFIX}, or the client is a specific one that is bound to the key identified
    *     by {@code uri}.
    */
@@ -90,6 +90,7 @@ public final class AwsKmsClient implements KmsClient {
    * @throws GeneralSecurityException if the client initialization fails
    */
   @Override
+  @CanIgnoreReturnValue
   public KmsClient withCredentials(String credentialPath) throws GeneralSecurityException {
     try {
       if (credentialPath == null) {
@@ -116,6 +117,7 @@ public final class AwsKmsClient implements KmsClient {
    * @throws GeneralSecurityException if the client initialization fails
    */
   @Override
+  @CanIgnoreReturnValue
   public KmsClient withDefaultCredentials() throws GeneralSecurityException {
     try {
       return withCredentialsProvider(new DefaultAWSCredentialsProviderChain());
@@ -125,10 +127,29 @@ public final class AwsKmsClient implements KmsClient {
   }
 
   /** Loads AWS credentials from a provider. */
+  @CanIgnoreReturnValue
   public KmsClient withCredentialsProvider(AWSCredentialsProvider provider)
       throws GeneralSecurityException {
     this.provider = provider;
     return this;
+  }
+
+  /**
+   * Specifies the {@link com.amazonaws.services.kms.AWSKMS} object to be used. Only used for
+   * testing.
+   */
+  @CanIgnoreReturnValue
+  KmsClient withAwsKms(@Nullable AWSKMS awsKms) {
+    this.awsKms = awsKms;
+    return this;
+  }
+
+  private static String removePrefix(String expectedPrefix, String kmsKeyUri) {
+    if (!kmsKeyUri.toLowerCase(Locale.US).startsWith(expectedPrefix)) {
+      throw new IllegalArgumentException(
+          String.format("key URI must start with %s", expectedPrefix));
+    }
+    return kmsKeyUri.substring(expectedPrefix.length());
   }
 
   @Override
@@ -140,14 +161,21 @@ public final class AwsKmsClient implements KmsClient {
     }
 
     try {
-      String keyUri = Validators.validateKmsKeyUriAndRemovePrefix(PREFIX, uri);
-      List<String> tokens = Splitter.on(':').splitToList(keyUri);
-      AWSKMS client =
-          AWSKMSClientBuilder.standard()
-              .withCredentials(provider)
-              .withRegion(Regions.fromName(tokens.get(3)))
-              .build();
-      return new AwsKmsAead(client, keyUri);
+      String keyId = removePrefix(PREFIX, uri);
+      AWSKMS client = awsKms;
+      List<String> tokens = Splitter.on(':').splitToList(keyId);
+      if (tokens.size() < 4) {
+        throw new IllegalArgumentException("invalid key URI");
+      }
+      String regionName = tokens.get(3);
+      if (client == null) {
+        client =
+            AWSKMSClientBuilder.standard()
+                .withCredentials(provider)
+                .withRegion(Regions.fromName(regionName))
+                .build();
+      }
+      return new AwsKmsAead(client, keyId);
     } catch (AmazonServiceException e) {
       throw new GeneralSecurityException("cannot load credentials from provider", e);
     }
@@ -161,8 +189,24 @@ public final class AwsKmsClient implements KmsClient {
    *
    * <p>If {@code credentialPath} is present, load the credentials from that. Otherwise use the
    * default credentials.
+   *
+   * <p>In many cases, it is not necessary to register the client. For example, you can create the
+   * AwsKmsClient yourself and call {@link AwsKmsClient#getAead} to get a remote {@code Aead}. Use
+   * this {@code Aead} to encrypt a keyset for with {@code
+   * TinkProtoKeysetFormat.serializeEncryptedKeyset}, or to create an envelope {@code Aead} using
+   * {@code KmsEnvelopeAead.create}.
    */
   public static void register(Optional<String> keyUri, Optional<String> credentialPath)
+      throws GeneralSecurityException {
+    registerWithAwsKms(keyUri, credentialPath, null);
+  }
+
+  /**
+   * Does the same as {@link #register}, but with an additional {@code awsKms} argument. Only used
+   * for testing.
+   */
+  static void registerWithAwsKms(
+      Optional<String> keyUri, Optional<String> credentialPath, @Nullable AWSKMS awsKms)
       throws GeneralSecurityException {
     AwsKmsClient client;
     if (keyUri.isPresent()) {
@@ -175,6 +219,7 @@ public final class AwsKmsClient implements KmsClient {
     } else {
       client.withDefaultCredentials();
     }
+    client.withAwsKms(awsKms);
     KmsClients.add(client);
   }
 }

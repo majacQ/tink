@@ -16,12 +16,17 @@
 #ifndef TINK_DAEAD_AES_SIV_KEY_MANAGER_H_
 #define TINK_DAEAD_AES_SIV_KEY_MANAGER_H_
 
+#include <cstdint>
+#include <memory>
 #include <string>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "tink/core/key_type_manager.h"
+#include "tink/core/template_util.h"
 #include "tink/deterministic_aead.h"
+#include "tink/input_stream.h"
 #include "tink/subtle/aes_siv_boringssl.h"
 #include "tink/subtle/random.h"
 #include "tink/util/constants.h"
@@ -33,6 +38,7 @@
 #include "tink/util/statusor.h"
 #include "tink/util/validation.h"
 #include "proto/aes_siv.pb.h"
+#include "proto/tink.pb.h"
 
 namespace crypto {
 namespace tink {
@@ -94,16 +100,16 @@ class AesSivKeyManager
         ReadBytesFromStream(key_format.key_size(), input_stream);
 
     if (!randomness.ok()) {
-      if (randomness.status().error_code() == util::error::OUT_OF_RANGE) {
+      if (randomness.status().code() == absl::StatusCode::kOutOfRange) {
         return crypto::tink::util::Status(
-            crypto::tink::util::error::INVALID_ARGUMENT,
+            absl::StatusCode::kInvalidArgument,
             "Could not get enough pseudorandomness from input stream");
       }
       return randomness.status();
     }
     google::crypto::tink::AesSivKey key;
     key.set_version(get_version());
-    key.set_key_value(randomness.ValueOrDie());
+    key.set_key_value(randomness.value());
     return key;
   }
 
@@ -111,7 +117,7 @@ class AesSivKeyManager
   crypto::tink::util::Status ValidateKeySize(uint32_t key_size) const {
     if (key_size != kKeySizeInBytes) {
       return crypto::tink::util::Status(
-          crypto::tink::util::error::INVALID_ARGUMENT,
+          absl::StatusCode::kInvalidArgument,
           absl::StrCat("Invalid key size: key size is ", key_size,
                        " bytes; supported size: ", kKeySizeInBytes, " bytes."));
     }

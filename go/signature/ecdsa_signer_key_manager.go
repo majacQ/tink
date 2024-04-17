@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package signature
 
@@ -22,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/google/tink/go/keyset"
 	subtleSignature "github.com/google/tink/go/signature/subtle"
 	"github.com/google/tink/go/subtle"
@@ -44,13 +42,8 @@ var errInvalidECDSASignKeyFormat = errors.New("ecdsa_signer_key_manager: invalid
 // It generates new ECDSAPrivateKeys and produces new instances of ECDSASign subtle.
 type ecdsaSignerKeyManager struct{}
 
-// newECDSASignerKeyManager creates a new ecdsaSignerKeyManager.
-func newECDSASignerKeyManager() *ecdsaSignerKeyManager {
-	return new(ecdsaSignerKeyManager)
-}
-
 // Primitive creates an ECDSASign subtle for the given serialized ECDSAPrivateKey proto.
-func (km *ecdsaSignerKeyManager) Primitive(serializedKey []byte) (interface{}, error) {
+func (km *ecdsaSignerKeyManager) Primitive(serializedKey []byte) (any, error) {
 	if len(serializedKey) == 0 {
 		return nil, errInvalidECDSASignKey
 	}
@@ -61,7 +54,7 @@ func (km *ecdsaSignerKeyManager) Primitive(serializedKey []byte) (interface{}, e
 	if err := km.validateKey(key); err != nil {
 		return nil, err
 	}
-	hash, curve, encoding := getECDSAParamNames(key.PublicKey.Params)
+	hash, curve, encoding := getECDSAParamNames(key.GetPublicKey().GetParams())
 	ret, err := subtleSignature.NewECDSASigner(hash, curve, encoding, key.KeyValue)
 	if err != nil {
 		return nil, fmt.Errorf("ecdsa_signer_key_manager: %s", err)
@@ -82,7 +75,7 @@ func (km *ecdsaSignerKeyManager) NewKey(serializedKeyFormat []byte) (proto.Messa
 		return nil, fmt.Errorf("ecdsa_signer_key_manager: invalid key format: %s", err)
 	}
 	// generate key
-	params := keyFormat.Params
+	params := keyFormat.GetParams()
 	curve := commonpb.EllipticCurveType_name[int32(params.Curve)]
 	tmpKey, err := ecdsa.GenerateKey(subtle.GetCurve(curve), rand.Reader)
 	if err != nil {
@@ -145,12 +138,12 @@ func (km *ecdsaSignerKeyManager) validateKey(key *ecdsapb.EcdsaPrivateKey) error
 	if err := keyset.ValidateKeyVersion(key.Version, ecdsaSignerKeyVersion); err != nil {
 		return fmt.Errorf("ecdsa_signer_key_manager: invalid key: %s", err)
 	}
-	hash, curve, encoding := getECDSAParamNames(key.PublicKey.Params)
+	hash, curve, encoding := getECDSAParamNames(key.GetPublicKey().GetParams())
 	return subtleSignature.ValidateECDSAParams(hash, curve, encoding)
 }
 
 // validateKeyFormat validates the given ECDSAKeyFormat.
 func (km *ecdsaSignerKeyManager) validateKeyFormat(format *ecdsapb.EcdsaKeyFormat) error {
-	hash, curve, encoding := getECDSAParamNames(format.Params)
+	hash, curve, encoding := getECDSAParamNames(format.GetParams())
 	return subtleSignature.ValidateECDSAParams(hash, curve, encoding)
 }

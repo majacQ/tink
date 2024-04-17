@@ -1,27 +1,27 @@
 ---
 name: Feature request
 about: Suggest an idea for Tink
-assignees: 'thaidn, chuckx'
 
 ---
 
-**Help us help you**
+> **NOTE**: **Tink moved to github.com/tink-crypto!**
+>
+> We split Tink into multiple focused repositories.
+> Please create this issue in the appropriate repository in
+> github.com/tink-crypto instead:
+>
+> *   [Tink Java](https://github.com/tink-crypto/tink-java/issues/new?template=feature_request.md)
+> *   [Tink Java AWS KMS extension](https://github.com/tink-crypto/tink-java-awskms/issues/new?template=feature_request.md)
+> *   [Tink Java Google Cloud KMS extension](https://github.com/tink-crypto/tink-java-gcpkms/issues/new?template=feature_request.md)
+> *   [Tink Java apps extension](https://github.com/tink-crypto/tink-java-apps/issues/new?template=feature_request.md)
+> *   [Tink C++](https://github.com/tink-crypto/tink-cc/issues/new?template=feature_request.md)
+> *   [Tink C++ AWS KMS extension](https://github.com/tink-crypto/tink-cc-awskms/issues/new?template=feature_request.md)
+> *   [Tink C++ Google Cloud KMS extension](https://github.com/tink-crypto/tink-cc-gcpkms/issues/new?template=feature_request.md)
+> *   [Tink Go](https://github.com/tink-crypto/tink-go/issues/new?template=feature_request.md)
+> *   [Tink Go AWS KMS extension](https://github.com/tink-crypto/tink-go-awskms/issues/new?template=feature_request.md)
+> *   [Tink Go Google Cloud KMS extension](https://github.com/tink-crypto/tink-go-gcpkms/issues/new?template=feature_request.md)
+> *   [Tink Go HashiCorp Vault KMS extension](https://github.com/tink-crypto/tink-go-hcvault/issues/new?template=feature_request.md)
+> *   [Tink Objc](https://github.com/tink-crypto/tink-objc/issues/new?template=feature_request.md)
+> *   [Tink Python](https://github.com/tink-crypto/tink-py/issues/new?template=feature_request.md)
+> *   [Tink Tinkey](https://github.com/tink-crypto/tink-tinkey/issues/new?template=feature_request.md)
 
-Please tell us more about
-[your Tink deployment](https://docs.google.com/forms/d/1mhHvyNJQgTXFDnqOermB7-BD8GQSyvtFPUAhILRbYcA/edit).
-
-**Is your feature request related to a problem?**
-
-Provide a description of what the problem is.
-
-**Describe the solution you'd like**
-
-A clear and concise description of what you want to happen.
-
-**Describe alternatives you've considered**
-
-Provide an explanation of any alternative solutions you've considered.
-
-**Additional context**
-
-Add any other context about the feature request.

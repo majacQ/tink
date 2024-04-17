@@ -14,11 +14,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-
 #include "tink/crypto_format.h"
+
+#include <cstdint>
+
 #include "gtest/gtest.h"
 #include "proto/tink.pb.h"
-
 
 using google::crypto::tink::KeysetInfo;
 using google::crypto::tink::OutputPrefixType;
@@ -34,7 +35,7 @@ void TestNonRawPrefix(const KeysetInfo::KeyInfo& key_info, int prefix_size,
   auto prefix_result =
       CryptoFormat::GetOutputPrefix(key_info);
   EXPECT_TRUE(prefix_result.ok()) << prefix_result.status();
-  auto prefix = prefix_result.ValueOrDie();
+  auto prefix = prefix_result.value();
   EXPECT_EQ(prefix_size, prefix.length());
   EXPECT_EQ(prefix_first_byte, prefix[0]);
   // key_id should follow in BigEndian order
@@ -93,7 +94,7 @@ TEST_F(CryptoFormatTest, testRawPrefix) {
   auto prefix_result =
       CryptoFormat::GetOutputPrefix(key_info);
   EXPECT_TRUE(prefix_result.ok()) << prefix_result.status();
-  auto prefix = prefix_result.ValueOrDie();
+  auto prefix = prefix_result.value();
   EXPECT_EQ(CryptoFormat::kRawPrefixSize, prefix.length());
 }
 

@@ -16,29 +16,36 @@
 
 #include "tink/prf/hmac_prf_key_manager.h"
 
+#include <memory>
+#include <sstream>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "tink/core/key_manager_impl.h"
 #include "tink/prf/prf_set.h"
 #include "tink/subtle/hmac_boringssl.h"
+#include "tink/util/enums.h"
 #include "tink/util/istream_input_stream.h"
 #include "tink/util/secret_data.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "tink/util/test_matchers.h"
 #include "proto/hmac_prf.pb.h"
+#include "proto/tink.pb.h"
 
 namespace crypto {
 namespace tink {
 
 using ::crypto::tink::test::IsOk;
+using ::crypto::tink::test::IsOkAndHolds;
 using ::crypto::tink::test::StatusIs;
 using ::crypto::tink::util::IstreamInputStream;
 using ::crypto::tink::util::StatusOr;
 using ::google::crypto::tink::HashType;
 using ::google::crypto::tink::HmacPrfKey;
 using ::google::crypto::tink::HmacPrfKeyFormat;
-using ::google::crypto::tink::KeyData;
 using ::testing::HasSubstr;
 using ::testing::Not;
 using ::testing::SizeIs;
@@ -83,15 +90,12 @@ TEST(HmacPrfKeyManagerTest, CreateKey) {
   key_format.set_key_size(16);
   key_format.mutable_params()->set_hash(HashType::SHA512);
   auto hmac_key_or = HmacPrfKeyManager().CreateKey(key_format);
-  ASSERT_THAT(hmac_key_or.status(), IsOk());
-  EXPECT_EQ(hmac_key_or.ValueOrDie().version(), 0);
-  EXPECT_EQ(hmac_key_or.ValueOrDie().params().hash(),
-            key_format.params().hash());
-  EXPECT_THAT(hmac_key_or.ValueOrDie().key_value(),
-              SizeIs(key_format.key_size()));
+  ASSERT_THAT(hmac_key_or, IsOk());
+  EXPECT_EQ(hmac_key_or.value().version(), 0);
+  EXPECT_EQ(hmac_key_or.value().params().hash(), key_format.params().hash());
+  EXPECT_THAT(hmac_key_or.value().key_value(), SizeIs(key_format.key_size()));
 
-  EXPECT_THAT(HmacPrfKeyManager().ValidateKey(hmac_key_or.ValueOrDie()),
-              IsOk());
+  EXPECT_THAT(HmacPrfKeyManager().ValidateKey(hmac_key_or.value()), IsOk());
 }
 
 TEST(HmacPrfKeyManagerTest, ValidKey) {
@@ -125,9 +129,9 @@ TEST(HmacPrfKeyManagerTest, DeriveKey) {
 
   StatusOr<HmacPrfKey> key_or =
       HmacPrfKeyManager().DeriveKey(format, &input_stream);
-  ASSERT_THAT(key_or.status(), IsOk());
-  EXPECT_EQ(key_or.ValueOrDie().key_value(), "0123456789abcdefghijklm");
-  EXPECT_EQ(key_or.ValueOrDie().params().hash(), format.params().hash());
+  ASSERT_THAT(key_or, IsOk());
+  EXPECT_EQ(key_or.value().key_value(), "0123456789abcdefghijklm");
+  EXPECT_EQ(key_or.value().params().hash(), format.params().hash());
 }
 
 TEST(HmacPrfKeyManagerTest, DeriveKeyNotEnoughRandomness) {
@@ -152,30 +156,56 @@ TEST(HmacPrfKeyManagerTest, DeriveKeyWrongVersion) {
   IstreamInputStream input_stream{
       absl::make_unique<std::stringstream>("0123456789abcdef")};
 
-  ASSERT_THAT(HmacPrfKeyManager().DeriveKey(format, &input_stream).status(),
-              StatusIs(util::error::INVALID_ARGUMENT, HasSubstr("version")));
+  ASSERT_THAT(
+      HmacPrfKeyManager().DeriveKey(format, &input_stream).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("version")));
 }
 
 TEST(HmacPrfKeyManagerTest, GetPrimitive) {
   HmacPrfKeyFormat key_format;
   key_format.mutable_params()->set_hash(HashType::SHA256);
   key_format.set_key_size(16);
-  HmacPrfKey key = HmacPrfKeyManager().CreateKey(key_format).ValueOrDie();
+  HmacPrfKey key = HmacPrfKeyManager().CreateKey(key_format).value();
   auto manager_mac_or = HmacPrfKeyManager().GetPrimitive<Prf>(key);
-  ASSERT_THAT(manager_mac_or.status(), IsOk());
-  auto prf_value_or =
-      manager_mac_or.ValueOrDie()->Compute("some plaintext", 16);
-  ASSERT_THAT(prf_value_or.status(), IsOk());
+  ASSERT_THAT(manager_mac_or, IsOk());
+  auto prf_value_or = manager_mac_or.value()->Compute("some plaintext", 16);
+  ASSERT_THAT(prf_value_or, IsOk());
 
   auto direct_prf_or = subtle::HmacBoringSsl::New(
       util::Enums::ProtoToSubtle(key.params().hash()), 16,
       util::SecretDataFromStringView(key.key_value()));
-  ASSERT_THAT(direct_prf_or.status(), IsOk());
+  ASSERT_THAT(direct_prf_or, IsOk());
   auto direct_prf_value_or =
-      direct_prf_or.ValueOrDie()->ComputeMac("some plaintext");
-  ASSERT_THAT(direct_prf_value_or.status(), IsOk());
-  EXPECT_THAT(direct_prf_value_or.ValueOrDie(),
-              StartsWith(prf_value_or.ValueOrDie()));
+      direct_prf_or.value()->ComputeMac("some plaintext");
+  ASSERT_THAT(direct_prf_value_or, IsOk());
+  EXPECT_THAT(direct_prf_value_or.value(), StartsWith(prf_value_or.value()));
+}
+
+TEST(HmacPrfKeyManagerTest, GetPrimitiveAllHashTypes) {
+  for (HashType hash : {HashType::SHA1, HashType::SHA224, HashType::SHA256,
+                        HashType::SHA384, HashType::SHA512}) {
+    SCOPED_TRACE(absl::StrCat("HashType: " + HashType_Name(hash)));
+    HmacPrfKeyFormat key_format;
+    key_format.mutable_params()->set_hash(HashType::SHA256);
+    key_format.set_key_size(16);
+    HmacPrfKey key = HmacPrfKeyManager().CreateKey(key_format).value();
+    auto manager_mac_or = HmacPrfKeyManager().GetPrimitive<Prf>(key);
+    ASSERT_THAT(manager_mac_or, IsOk());
+    EXPECT_THAT(manager_mac_or.value()->Compute("some plaintext", 16),
+                IsOkAndHolds(SizeIs(16)));
+  }
+}
+
+TEST(HmacPrfKeyManagerTest, GetPrimitiveUnknownHash) {
+  HmacPrfKey key;
+  key.set_version(0);
+  key.mutable_params()->set_hash(HashType::UNKNOWN_HASH);
+  key.set_key_value("0123456789abcdef");
+  util::StatusOr<std::unique_ptr<Prf>> prf =
+      HmacPrfKeyManager().GetPrimitive<Prf>(key);
+  EXPECT_THAT(prf.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unknown hash when constructing HMAC PRF")));
 }
 
 }  // namespace

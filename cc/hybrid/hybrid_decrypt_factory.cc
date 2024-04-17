@@ -16,18 +16,21 @@
 
 #include "tink/hybrid/hybrid_decrypt_factory.h"
 
+#include <memory>
+
+#include "tink/hybrid/hybrid_decrypt_wrapper.h"
 #include "tink/hybrid_decrypt.h"
 #include "tink/key_manager.h"
 #include "tink/keyset_handle.h"
 #include "tink/registry.h"
-#include "tink/hybrid/hybrid_decrypt_wrapper.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
-
 
 namespace crypto {
 namespace tink {
 
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 // static
 util::StatusOr<std::unique_ptr<HybridDecrypt>>
 HybridDecryptFactory::GetPrimitive(const KeysetHandle& keyset_handle) {
@@ -36,7 +39,8 @@ HybridDecryptFactory::GetPrimitive(const KeysetHandle& keyset_handle) {
   if (!status.ok()) {
     return status;
   }
-  return keyset_handle.GetPrimitive<HybridDecrypt>();
+  return keyset_handle.GetPrimitive<crypto::tink::HybridDecrypt>(
+      ConfigGlobalRegistry());
 }
 
 // static
@@ -51,6 +55,8 @@ HybridDecryptFactory::GetPrimitive(
   }
   return keyset_handle.GetPrimitive<HybridDecrypt>(custom_key_manager);
 }
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace tink
 }  // namespace crypto

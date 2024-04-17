@@ -17,15 +17,16 @@
 #ifndef TINK_UTIL_ERRORS_H_
 #define TINK_UTIL_ERRORS_H_
 
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "tink/util/status.h"
 
 namespace crypto {
 namespace tink {
 
-// Constructs a Status with formatted error message.
+// Constructs a Status with formatted error message using absl::StatusCode.
 template <typename... Args>
-util::Status ToStatusF(util::error::Code code,
+util::Status ToStatusF(absl::StatusCode code,
                        const absl::FormatSpec<Args...>& format,
                        const Args&... args) {
   return util::Status(code, absl::StrFormat(format, args...));

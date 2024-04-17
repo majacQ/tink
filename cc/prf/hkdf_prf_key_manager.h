@@ -17,11 +17,16 @@
 #ifndef TINK_PRF_HKDF_PRF_KEY_MANAGER_H_
 #define TINK_PRF_HKDF_PRF_KEY_MANAGER_H_
 
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "tink/core/key_type_manager.h"
+#include "tink/core/template_util.h"
 #include "tink/input_stream.h"
 #include "tink/prf/prf_set.h"
 #include "tink/subtle/prf/hkdf_streaming_prf.h"
@@ -65,8 +70,7 @@ class HkdfPrfKeyManager
       if (!hkdf_result.ok()) {
         return hkdf_result.status();
       }
-      return subtle::CreatePrfFromStreamingPrf(
-          std::move(hkdf_result.ValueOrDie()));
+      return subtle::CreatePrfFromStreamingPrf(std::move(hkdf_result.value()));
     }
   };
 
@@ -128,7 +132,7 @@ class HkdfPrfKeyManager
     google::crypto::tink::HkdfPrfKey key;
     key.set_version(get_version());
     *key.mutable_params() = key_format.params();
-    key.set_key_value(randomness.ValueOrDie());
+    key.set_key_value(randomness.value());
     return key;
   }
 
@@ -136,10 +140,10 @@ class HkdfPrfKeyManager
   crypto::tink::util::Status ValidateKeySize(int key_size) const {
     if (key_size < kMinKeySizeBytes) {
       return crypto::tink::util::Status(
-          util::error::INVALID_ARGUMENT,
+          absl::StatusCode::kInvalidArgument,
           "Invalid HkdfPrfKey: key_value is too short.");
     }
-    return crypto::tink::util::Status::OK;
+    return crypto::tink::util::OkStatus();
   }
 
   crypto::tink::util::Status ValidateParams(
@@ -148,10 +152,10 @@ class HkdfPrfKeyManager
     if (params.hash() != google::crypto::tink::HashType::SHA256 &&
         params.hash() != google::crypto::tink::HashType::SHA512) {
       return crypto::tink::util::Status(
-          util::error::INVALID_ARGUMENT,
+          absl::StatusCode::kInvalidArgument,
           "Invalid HkdfPrfKey: unsupported hash.");
     }
-    return crypto::tink::util::Status::OK;
+    return crypto::tink::util::OkStatus();
   }
 
   // We use a somewhat larger minimum key size than usual, because PRFs might be

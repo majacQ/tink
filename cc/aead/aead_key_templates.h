@@ -17,6 +17,7 @@
 #ifndef TINK_AEAD_AEAD_KEY_TEMPLATES_H_
 #define TINK_AEAD_AEAD_KEY_TEMPLATES_H_
 
+#include "absl/base/attributes.h"
 #include "absl/strings/string_view.h"
 #include "proto/tink.pb.h"
 
@@ -33,7 +34,7 @@ namespace tink {
 //   auto handle_result =
 //       KeysetHandle::GenerateNew(AeadKeyTemplates::Aes128Gcm());
 //   if (!handle_result.ok()) { /* fail with error */ }
-//   auto keyset_handle = std::move(handle_result.ValueOrDie());
+//   auto keyset_handle = std::move(handle_result.value());
 class AeadKeyTemplates {
  public:
   // Returns a KeyTemplate that generates new instances of AesEaxKey
@@ -59,6 +60,14 @@ class AeadKeyTemplates {
   //   - tag size: 16 bytes
   //   - OutputPrefixType: TINK
   static const google::crypto::tink::KeyTemplate& Aes128Gcm();
+
+  // Returns a KeyTemplate that generates new instances of AesGcmKey
+  // with the following parameters:
+  //   - key size: 16 bytes
+  //   - IV size: 12 bytes
+  //   - tag size: 16 bytes
+  //   - OutputPrefixType: RAW
+  static const google::crypto::tink::KeyTemplate& Aes128GcmNoPrefix();
 
   // Returns a KeyTemplate that generates new instances of AesGcmKey
   // with the following parameters:
@@ -128,6 +137,10 @@ class AeadKeyTemplates {
   //   templates, when you generate new keys with this template, Tink does not
   //   generate new key material, but only creates a reference to the remote
   //   KEK.
+  ABSL_DEPRECATED(
+      "AeadKeyTemplates::KmsEnvelopeAead is deprecated. Instead, get the remote"
+      "AEAD with KmsClient::GetAead, and then create the envelope AEAD using "
+      "KmsEnvelopeAead::New without registering the KmsClient object.")
   static google::crypto::tink::KeyTemplate KmsEnvelopeAead(
       absl::string_view kek_uri,
       const google::crypto::tink::KeyTemplate& dek_template);

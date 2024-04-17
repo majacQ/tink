@@ -16,9 +16,19 @@
 #ifndef TINK_CORE_PRIVATE_KEY_MANAGER_IMPL_H_
 #define TINK_CORE_PRIVATE_KEY_MANAGER_IMPL_H_
 
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "tink/core/key_manager_impl.h"
+#include "tink/core/key_type_manager.h"
 #include "tink/core/private_key_type_manager.h"
 #include "tink/key_manager.h"
+#include "tink/util/status.h"
+#include "tink/util/statusor.h"
 #include "tink/util/validation.h"
 namespace crypto {
 namespace tink {
@@ -67,9 +77,9 @@ class PrivateKeyFactoryImpl : public PrivateKeyFactory {
   crypto::tink::util::StatusOr<std::unique_ptr<google::crypto::tink::KeyData>>
   GetPublicKeyData(absl::string_view serialized_private_key) const override {
     PrivateKeyProto private_key;
-    if (!private_key.ParseFromString(std::string(serialized_private_key))) {
+    if (!private_key.ParseFromString(serialized_private_key)) {
       return crypto::tink::util::Status(
-          util::error::INVALID_ARGUMENT,
+          absl::StatusCode::kInvalidArgument,
           absl::StrCat("Could not parse the passed string as proto '",
                        PrivateKeyProto().GetTypeName(), "'."));
     }
@@ -80,7 +90,7 @@ class PrivateKeyFactoryImpl : public PrivateKeyFactory {
         private_key_manager_->GetPublicKey(private_key);
     if (!public_key_result.ok()) return public_key_result.status();
     key_data->set_type_url(public_key_type_);
-    key_data->set_value(public_key_result.ValueOrDie().SerializeAsString());
+    key_data->set_value(public_key_result.value().SerializeAsString());
     key_data->set_key_material_type(public_key_material_type_);
     return std::move(key_data);
   }

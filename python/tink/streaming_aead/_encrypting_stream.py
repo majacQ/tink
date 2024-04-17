@@ -17,11 +17,6 @@ It writes the ciphertext to a given other file-like object, which can later be
 decrypted and read using a DecryptingStream wrapper.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
-
 import io
 from typing import BinaryIO, Optional
 
@@ -59,7 +54,7 @@ class RawEncryptingStream(io.RawIOBase):
       associated_data: The associated data to use for encryption. This must
         match the associated_data used for decryption.
     """
-    super(RawEncryptingStream, self).__init__()
+    super().__init__()
     if not ciphertext_destination.writable():
       raise ValueError('ciphertext_destination must be writable')
     cc_ciphertext_destination = _file_object_adapter.FileObjectAdapter(
@@ -78,7 +73,7 @@ class RawEncryptingStream(io.RawIOBase):
   def readinto(self, b: bytearray) -> Optional[int]:
     raise io.UnsupportedOperation()
 
-  def write(self, b: bytes) -> int:
+  def write(self, b: bytes) -> int:  # pytype: disable=signature-mismatch
     """Write the given buffer to the IO stream.
 
     Args:
@@ -107,7 +102,7 @@ class RawEncryptingStream(io.RawIOBase):
       return
     self.flush()
     self._close_cc_encrypting_stream()
-    super(RawEncryptingStream, self).close()
+    super().close()
 
   def writable(self) -> bool:
     """Return True if the stream supports writing."""

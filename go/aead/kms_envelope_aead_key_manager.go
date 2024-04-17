@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package aead
 
@@ -20,7 +18,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/google/tink/go/core/registry"
 	"github.com/google/tink/go/keyset"
 	kmsepb "github.com/google/tink/go/proto/kms_envelope_go_proto"
@@ -36,13 +34,8 @@ const (
 // It generates new KMSEnvelopeAEADKey keys and produces new instances of KMSEnvelopeAEAD subtle.
 type kmsEnvelopeAEADKeyManager struct{}
 
-// newKMSEnvelopeAEADKeyManager creates a new aesGcmKeyManager.
-func newKMSEnvelopeAEADKeyManager() *kmsEnvelopeAEADKeyManager {
-	return new(kmsEnvelopeAEADKeyManager)
-}
-
 // Primitive creates an KMSEnvelopeAEAD subtle for the given serialized KMSEnvelopeAEADKey proto.
-func (km *kmsEnvelopeAEADKeyManager) Primitive(serializedKey []byte) (interface{}, error) {
+func (km *kmsEnvelopeAEADKeyManager) Primitive(serializedKey []byte) (any, error) {
 	if len(serializedKey) == 0 {
 		return nil, errors.New("kms_envelope_aead_key_manager: invalid key")
 	}
@@ -51,9 +44,9 @@ func (km *kmsEnvelopeAEADKeyManager) Primitive(serializedKey []byte) (interface{
 		return nil, errors.New("kms_envelope_aead_key_manager: invalid key")
 	}
 	if err := km.validateKey(key); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("kms_envelope_aead_key_manager: %v", err)
 	}
-	uri := key.Params.KekUri
+	uri := key.GetParams().GetKekUri()
 	kmsClient, err := registry.GetKMSClient(uri)
 	if err != nil {
 		return nil, err
@@ -63,7 +56,7 @@ func (km *kmsEnvelopeAEADKeyManager) Primitive(serializedKey []byte) (interface{
 		return nil, errors.New("kms_envelope_aead_key_manager: invalid aead backend")
 	}
 
-	return NewKMSEnvelopeAEAD2(key.Params.DekTemplate, backend), nil
+	return NewKMSEnvelopeAEAD2(key.GetParams().GetDekTemplate(), backend), nil
 }
 
 // NewKey creates a new key according to specification the given serialized KMSEnvelopeAEADKeyFormat.
@@ -74,6 +67,9 @@ func (km *kmsEnvelopeAEADKeyManager) NewKey(serializedKeyFormat []byte) (proto.M
 	keyFormat := new(kmsepb.KmsEnvelopeAeadKeyFormat)
 	if err := proto.Unmarshal(serializedKeyFormat, keyFormat); err != nil {
 		return nil, errors.New("kms_envelope_aead_key_manager: invalid key format")
+	}
+	if err := km.validateKeyFormat(keyFormat); err != nil {
+		return nil, fmt.Errorf("kms_envelope_aead_key_manager: %v", err)
 	}
 	return &kmsepb.KmsEnvelopeAeadKey{
 		Version: kmsEnvelopeAEADKeyVersion,
@@ -112,9 +108,19 @@ func (km *kmsEnvelopeAEADKeyManager) TypeURL() string {
 
 // validateKey validates the given KmsEnvelopeAeadKey.
 func (km *kmsEnvelopeAEADKeyManager) validateKey(key *kmsepb.KmsEnvelopeAeadKey) error {
-	err := keyset.ValidateKeyVersion(key.Version, kmsEnvelopeAEADKeyVersion)
-	if err != nil {
-		return fmt.Errorf("kms_envelope_aead_key_manager: %s", err)
+	if err := keyset.ValidateKeyVersion(key.Version, kmsEnvelopeAEADKeyVersion); err != nil {
+		return err
+	}
+	if err := km.validateKeyFormat(key.GetParams()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (km *kmsEnvelopeAEADKeyManager) validateKeyFormat(keyFormat *kmsepb.KmsEnvelopeAeadKeyFormat) error {
+	dekKeyType := keyFormat.GetDekTemplate().GetTypeUrl()
+	if !isSupporedKMSEnvelopeDEK(dekKeyType) {
+		return fmt.Errorf("unsupported DEK key type %s. Only Tink AEAD key types are supported with KMSEnvelopeAEAD", dekKeyType)
 	}
 	return nil
 }

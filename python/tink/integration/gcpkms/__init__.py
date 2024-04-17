@@ -1,4 +1,4 @@
-# Copyright 2019 Google LLC.
+# Copyright 2019 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +13,14 @@
 # limitations under the License.
 
 """GCP KMS package."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
-from tink.integration.gcpkms import _gcp_kms_client
+try:
+  # pylint: disable=g-import-not-at-top
+  from tink.integration.gcpkms import _gcp_kms_client
+except ImportError as import_error:
+  raise ImportError(
+      'Error importing the Tink Google Cloud KMS module; did you forget to'
+      ' install the `tink[gcpkms]` extras?'
+  ) from import_error
 
 GcpKmsClient = _gcp_kms_client.GcpKmsClient

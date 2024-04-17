@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package subtle
 
@@ -31,7 +29,7 @@ type ECPublicKey struct {
 	Point ECPoint
 }
 
-// ECPrivateKey represents a elliptic curve public key.
+// ECPrivateKey represents a elliptic curve private key.
 type ECPrivateKey struct {
 	PublicKey ECPublicKey
 	D         *big.Int
@@ -241,9 +239,7 @@ func ComputeSharedSecret(pub *ECPoint, priv *ECPrivateKey) ([]byte, error) {
 	}
 
 	sharedSecret := make([]byte, maxSharedKeyLength(priv.PublicKey))
-	xBytes := x.Bytes()
-	copy(sharedSecret[len(sharedSecret)-len(xBytes):], xBytes)
-	return sharedSecret, nil
+	return x.FillBytes(sharedSecret), nil
 }
 
 func maxSharedKeyLength(pub ECPublicKey) int {

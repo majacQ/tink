@@ -13,11 +13,6 @@
 # limitations under the License.
 """Streaming AEAD wrapper."""
 
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
-
 import io
 from typing import cast, BinaryIO, Optional, Type
 
@@ -45,15 +40,19 @@ class _DecryptingStreamWrapper(io.RawIOBase):
         will be read.
       associated_data: The associated data to use for decryption.
     """
-    super(_DecryptingStreamWrapper, self).__init__()
+    super().__init__()
     if not ciphertext_source.readable():
       raise ValueError('ciphertext_source must be readable')
     self._ciphertext_source = _rewindable_input_stream.RewindableInputStream(
         ciphertext_source)
     self._associated_data = associated_data
     self._matching_stream = None
-    self._remaining_primitives = [
-        entry.primitive for entry in primitive_set.raw_primitives()]
+    self._remaining_primitives = []
+    # For legacy reasons (Tink always encrypted with non-RAW keys) we use all
+    # primitives, even those which have output_prefix_type != RAW.
+    for entry_list in primitive_set.all():
+      for e in entry_list:
+        self._remaining_primitives.append(e.primitive)
     self._attempting_stream = self._next_decrypting_stream()
 
   def _next_decrypting_stream(self) -> io.RawIOBase:
@@ -130,7 +129,7 @@ class _DecryptingStreamWrapper(io.RawIOBase):
     if self._attempting_stream:
       self._attempting_stream.close()
     self._ciphertext_source.close()
-    super(_DecryptingStreamWrapper, self).close()
+    super().close()
 
   def readable(self) -> bool:
     return True

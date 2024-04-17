@@ -16,18 +16,22 @@
 
 #include "tink/aead/aead_factory.h"
 
+#include <memory>
+
+#include "absl/memory/memory.h"
 #include "tink/aead.h"
+#include "tink/aead/aead_wrapper.h"
 #include "tink/key_manager.h"
 #include "tink/keyset_handle.h"
 #include "tink/registry.h"
-#include "tink/aead/aead_wrapper.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
-
 
 namespace crypto {
 namespace tink {
 
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 // static
 util::StatusOr<std::unique_ptr<Aead>> AeadFactory::GetPrimitive(
     const KeysetHandle& keyset_handle) {
@@ -36,7 +40,7 @@ util::StatusOr<std::unique_ptr<Aead>> AeadFactory::GetPrimitive(
   if (!status.ok()) {
     return status;
   }
-  return keyset_handle.GetPrimitive<Aead>();
+  return keyset_handle.GetPrimitive<crypto::tink::Aead>(ConfigGlobalRegistry());
 }
 
 // static
@@ -50,6 +54,8 @@ util::StatusOr<std::unique_ptr<Aead>> AeadFactory::GetPrimitive(
   }
   return keyset_handle.GetPrimitive<Aead>(custom_key_manager);
 }
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace tink
 }  // namespace crypto

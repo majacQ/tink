@@ -18,10 +18,15 @@
 #define TINK_CLEARTEXT_KEYSET_HANDLE_H_
 
 #include <istream>
+#include <memory>
 #include <sstream>
+#include <string>
 
+#include "absl/container/flat_hash_map.h"
 #include "tink/keyset_handle.h"
 #include "tink/keyset_reader.h"
+#include "tink/keyset_writer.h"
+#include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "proto/tink.pb.h"
 
@@ -32,11 +37,15 @@ namespace tink {
 // loading cleartext keysets, thus its usage should be restricted.
 class CleartextKeysetHandle {
  public:
-  // Creates a KeysetHandle with a keyset obtained via |reader|.
+  // Creates a KeysetHandle with a keyset obtained via `reader`. Optionally
+  // allows to pass monitoring_annotations to attach additional data to the
+  // resulting KeysetHandle, which will be used for monitoring.
   static crypto::tink::util::StatusOr<std::unique_ptr<KeysetHandle>> Read(
-      std::unique_ptr<KeysetReader> reader);
+      std::unique_ptr<KeysetReader> reader,
+      const absl::flat_hash_map<std::string, std::string>&
+          monitoring_annotations = {});
 
-  // Writes the keyset in the given |keyset_handle| to the |writer| which must
+  // Writes the keyset in the given `keyset_handle` to the `writer` which must
   // be non-null.
   static crypto::tink::util::Status Write(KeysetWriter* writer,
                                           const KeysetHandle& keyset_handle);

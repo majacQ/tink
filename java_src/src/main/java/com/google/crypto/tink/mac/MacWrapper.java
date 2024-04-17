@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,15 +18,20 @@ package com.google.crypto.tink.mac;
 
 import com.google.crypto.tink.CryptoFormat;
 import com.google.crypto.tink.Mac;
-import com.google.crypto.tink.PrimitiveSet;
 import com.google.crypto.tink.PrimitiveWrapper;
-import com.google.crypto.tink.Registry;
-import com.google.crypto.tink.proto.OutputPrefixType;
-import com.google.crypto.tink.subtle.Bytes;
+import com.google.crypto.tink.internal.LegacyProtoKey;
+import com.google.crypto.tink.internal.MonitoringUtil;
+import com.google.crypto.tink.internal.MutableMonitoringRegistry;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveConstructor;
+import com.google.crypto.tink.internal.PrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveSet;
+import com.google.crypto.tink.mac.internal.LegacyFullMac;
+import com.google.crypto.tink.monitoring.MonitoringClient;
+import com.google.crypto.tink.monitoring.MonitoringKeysetInfo;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Logger;
 
 /**
  * MacWrapper is the implementation of PrimitiveWrapper for the Mac primitive.
@@ -37,27 +42,41 @@ import java.util.logging.Logger;
  * the right key in the set. If the keys associated with the prefix do not validate the tag, the
  * primitive tries all keys with {@link com.google.crypto.tink.proto.OutputPrefixType#RAW}.
  */
-class MacWrapper implements PrimitiveWrapper<Mac, Mac> {
-  private static final Logger logger = Logger.getLogger(MacWrapper.class.getName());
+public class MacWrapper implements PrimitiveWrapper<Mac, Mac> {
+
+  private static final MacWrapper WRAPPER = new MacWrapper();
+  private static final PrimitiveConstructor<LegacyProtoKey, Mac>
+      LEGACY_FULL_MAC_PRIMITIVE_CONSTRUCTOR =
+          PrimitiveConstructor.create(LegacyFullMac::create, LegacyProtoKey.class, Mac.class);
 
   private static class WrappedMac implements Mac {
     private final PrimitiveSet<Mac> primitives;
-    private final byte[] formatVersion = new byte[] {0};
+    private final MonitoringClient.Logger computeLogger;
+    private final MonitoringClient.Logger verifyLogger;
 
     private WrappedMac(PrimitiveSet<Mac> primitives) {
       this.primitives = primitives;
+      if (primitives.hasAnnotations()) {
+        MonitoringClient client = MutableMonitoringRegistry.globalInstance().getMonitoringClient();
+        MonitoringKeysetInfo keysetInfo = MonitoringUtil.getMonitoringKeysetInfo(primitives);
+        computeLogger = client.createLogger(keysetInfo, "mac", "compute");
+        verifyLogger = client.createLogger(keysetInfo, "mac", "verify");
+      } else {
+        computeLogger = MonitoringUtil.DO_NOTHING_LOGGER;
+        verifyLogger = MonitoringUtil.DO_NOTHING_LOGGER;
+      }
     }
 
     @Override
     public byte[] computeMac(final byte[] data) throws GeneralSecurityException {
-      if (primitives.getPrimary().getOutputPrefixType().equals(OutputPrefixType.LEGACY)) {
-        return Bytes.concat(
-            primitives.getPrimary().getIdentifier(),
-            primitives.getPrimary().getPrimitive().computeMac(Bytes.concat(data, formatVersion)));
+      try {
+        byte[] output = primitives.getPrimary().getFullPrimitive().computeMac(data);
+        computeLogger.log(primitives.getPrimary().getKeyId(), data.length);
+        return output;
+      } catch (GeneralSecurityException e) {
+        computeLogger.logFailure();
+        throw e;
       }
-      return Bytes.concat(
-          primitives.getPrimary().getIdentifier(),
-          primitives.getPrimary().getPrimitive().computeMac(data));
     }
 
     @Override
@@ -65,22 +84,18 @@ class MacWrapper implements PrimitiveWrapper<Mac, Mac> {
       if (mac.length <= CryptoFormat.NON_RAW_PREFIX_SIZE) {
         // This also rejects raw MAC with size of 4 bytes or fewer. Those MACs are
         // clearly insecure, thus should be discouraged.
+        verifyLogger.logFailure();
         throw new GeneralSecurityException("tag too short");
       }
       byte[] prefix = Arrays.copyOf(mac, CryptoFormat.NON_RAW_PREFIX_SIZE);
-      byte[] macNoPrefix = Arrays.copyOfRange(mac, CryptoFormat.NON_RAW_PREFIX_SIZE, mac.length);
       List<PrimitiveSet.Entry<Mac>> entries = primitives.getPrimitive(prefix);
       for (PrimitiveSet.Entry<Mac> entry : entries) {
         try {
-          if (entry.getOutputPrefixType().equals(OutputPrefixType.LEGACY)) {
-            entry.getPrimitive().verifyMac(macNoPrefix, Bytes.concat(data, formatVersion));
-          } else {
-            entry.getPrimitive().verifyMac(macNoPrefix, data);
-          }
+          entry.getFullPrimitive().verifyMac(mac, data);
+          verifyLogger.log(entry.getKeyId(), data.length);
           // If there is no exception, the MAC is valid and we can return.
           return;
         } catch (GeneralSecurityException e) {
-          logger.info("tag prefix matches a key, but cannot verify: " + e);
           // Ignored as we want to continue verification with the remaining keys.
         }
       }
@@ -89,7 +104,8 @@ class MacWrapper implements PrimitiveWrapper<Mac, Mac> {
       entries = primitives.getRawPrimitives();
       for (PrimitiveSet.Entry<Mac> entry : entries) {
         try {
-          entry.getPrimitive().verifyMac(mac, data);
+          entry.getFullPrimitive().verifyMac(mac, data);
+          verifyLogger.log(entry.getKeyId(), data.length);
           // If there is no exception, the MAC is valid and we can return.
           return;
         } catch (GeneralSecurityException ignored) {
@@ -97,6 +113,7 @@ class MacWrapper implements PrimitiveWrapper<Mac, Mac> {
         }
       }
       // nothing works.
+      verifyLogger.logFailure();
       throw new GeneralSecurityException("invalid MAC");
     }
   }
@@ -118,7 +135,19 @@ class MacWrapper implements PrimitiveWrapper<Mac, Mac> {
     return Mac.class;
   }
 
- public static void register() throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new MacWrapper());
+  static void register() throws GeneralSecurityException {
+    MutablePrimitiveRegistry.globalInstance().registerPrimitiveWrapper(WRAPPER);
+    MutablePrimitiveRegistry.globalInstance()
+        .registerPrimitiveConstructor(LEGACY_FULL_MAC_PRIMITIVE_CONSTRUCTOR);
+  }
+
+  /**
+   * registerToInternalPrimitiveRegistry is a non-public method (it takes an argument of an
+   * internal-only type) registering an instance of {@code MacWrapper} to the provided {@code
+   * PrimitiveRegistry.Builder}.
+   */
+  public static void registerToInternalPrimitiveRegistry(
+      PrimitiveRegistry.Builder primitiveRegistryBuilder) throws GeneralSecurityException {
+    primitiveRegistryBuilder.registerPrimitiveWrapper(WRAPPER);
   }
 }

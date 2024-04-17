@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package subtle_test
 
@@ -67,21 +65,24 @@ func createAEAD(keySize, ivSize int, hashAlgo string, macKeySize int, tagSize in
 
 // Copied from
 // https://tools.ietf.org/html/draft-mcgrew-aead-aes-cbc-hmac-sha2-05.
+//
 // We use CTR but the RFC uses CBC mode, so it's not possible to compare
-// plaintexts. However, the tests are still valueable to ensure that we correcly
-// compute HMAC over ciphertext and aad.
+// plaintexts. However, the tests are still valueable to ensure that we
+// correcly compute HMAC over ciphertext and associatedData.
 var rfcTestVectors = []struct {
-	macKey        string
-	encryptionKey string
-	ciphertext    string
-	aad           string
-	hashAlgo      string
-	ivSize        int
-	tagSize       int
+	macKey         string
+	encryptionKey  string
+	ciphertext     string
+	associatedData string
+	hashAlgo       string
+	ivSize         int
+	tagSize        int
 }{
-	{"000102030405060708090a0b0c0d0e0f",
-		"101112131415161718191a1b1c1d1e1f",
-		"1af38c2dc2b96ffdd86694092341bc04" +
+	{
+		macKey:        "000102030405060708090a0b0c0d0e0f",
+		encryptionKey: "101112131415161718191a1b1c1d1e1f",
+		ciphertext: "" +
+			"1af38c2dc2b96ffdd86694092341bc04" +
 			"c80edfa32ddf39d5ef00c0b468834279" +
 			"a2e46a1b8049f792f76bfe54b903a9c9" +
 			"a94ac9b47ad2655c5f10f9aef71427e2" +
@@ -92,13 +93,19 @@ var rfcTestVectors = []struct {
 			"bd34d848b3d69550a67646344427ade5" +
 			"4b8851ffb598f7f80074b9473c82e2db" +
 			"652c3fa36b0a7c5b3219fab3a30bc1c4",
-		"546865207365636f6e64207072696e63" +
+		associatedData: "" +
+			"546865207365636f6e64207072696e63" +
 			"69706c65206f66204175677573746520" +
 			"4b6572636b686f666673",
-		"SHA256", 16, 16},
-	{"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-		"202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
-		"1af38c2dc2b96ffdd86694092341bc04" +
+		hashAlgo: "SHA256",
+		ivSize:   16,
+		tagSize:  16,
+	},
+	{
+		macKey:        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+		encryptionKey: "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+		ciphertext: "" +
+			"1af38c2dc2b96ffdd86694092341bc04" +
 			"4affaaadb78c31c5da4b1b590d10ffbd" +
 			"3dd8d5d302423526912da037ecbcc7bd" +
 			"822c301dd67c373bccb584ad3e9279c2" +
@@ -110,33 +117,38 @@ var rfcTestVectors = []struct {
 			"be2638d09dd7a4930930806d0703b1f6" +
 			"4dd3b4c088a7f45c216839645b2012bf" +
 			"2e6269a8c56a816dbc1b267761955bc5",
-		"546865207365636f6e64207072696e63" +
+		associatedData: "" +
+			"546865207365636f6e64207072696e63" +
 			"69706c65206f66204175677573746520" +
 			"4b6572636b686f666673",
-		"SHA512", 16, 32},
+		hashAlgo: "SHA512",
+		ivSize:   16,
+		tagSize:  32,
+	},
 }
 
-func hexDecodeOrDie(data string) []byte {
+func hexDecode(t *testing.T, data string) []byte {
+	t.Helper()
 	decoded, err := hex.DecodeString(data)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	return decoded
 }
 
 func TestETARFCTestVectors(t *testing.T) {
 	for _, v := range rfcTestVectors {
-		macKey := hexDecodeOrDie(v.macKey)
-		encryptionKey := hexDecodeOrDie(v.encryptionKey)
-		ciphertext := hexDecodeOrDie(v.ciphertext)
-		aad := hexDecodeOrDie(v.aad)
+		macKey := hexDecode(t, v.macKey)
+		encryptionKey := hexDecode(t, v.encryptionKey)
+		ciphertext := hexDecode(t, v.ciphertext)
+		associatedData := hexDecode(t, v.associatedData)
 
 		cipher, err := createAEADWithKeys(encryptionKey, v.ivSize, v.hashAlgo, macKey, v.tagSize)
 		if err != nil {
 			t.Fatalf("failed to create AEAD from RFC test vector: %v", v)
 		}
 
-		if _, err := cipher.Decrypt(ciphertext, aad); err != nil {
+		if _, err := cipher.Decrypt(ciphertext, associatedData); err != nil {
 			t.Errorf("decryption failed to RFC test vector: %v, error: %v", v, err)
 		}
 	}
@@ -154,9 +166,9 @@ func TestETAEncryptDecrypt(t *testing.T) {
 	}
 
 	message := []byte("Some data to encrypt.")
-	aad := []byte("Some data to authenticate.")
+	associatedData := []byte("Some data to authenticate.")
 
-	ciphertext, err := cipher.Encrypt(message, aad)
+	ciphertext, err := cipher.Encrypt(message, associatedData)
 	if err != nil {
 		t.Fatalf("encryption failed, error: %v", err)
 	}
@@ -165,13 +177,38 @@ func TestETAEncryptDecrypt(t *testing.T) {
 		t.Errorf("invalid ciphertext size, got: %d, want: %d", len(ciphertext), len(message)+ivSize+tagSize)
 	}
 
-	plaintext, err := cipher.Decrypt(ciphertext, aad)
+	plaintext, err := cipher.Decrypt(ciphertext, associatedData)
 	if err != nil {
 		t.Fatalf("decryption failed, error: %v", err)
 	}
 
 	if !bytes.Equal(plaintext, message) {
 		t.Errorf("invalid plaintext, got: %q, want: %q", plaintext, message)
+	}
+}
+
+func TestETAWithAssociatedDataSlice(t *testing.T) {
+	const keySize = 16
+	const ivSize = 12
+	const macKeySize = 16
+	const tagSize = 16
+	cipher, err := createAEAD(keySize, ivSize, "SHA1", macKeySize, tagSize)
+	if err != nil {
+		t.Fatalf("got: %v, want: success", err)
+	}
+
+	message := []byte("message")
+	largeData := []byte("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	associatedData := largeData[:1]
+
+	_, err = cipher.Encrypt(message, associatedData)
+	if err != nil {
+		t.Fatalf("encryption failed, error: %v", err)
+	}
+
+	wantLargeData := []byte("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	if !bytes.Equal(largeData, wantLargeData) {
+		t.Errorf("largeData = %q, want: %q", largeData, wantLargeData)
 	}
 }
 
@@ -188,9 +225,9 @@ func TestETAEncryptDecryptRandomMessage(t *testing.T) {
 
 	for i := 0; i < 256; i++ {
 		message := random.GetRandomBytes(uint32(i))
-		aad := random.GetRandomBytes(uint32(i))
+		associatedData := random.GetRandomBytes(uint32(i))
 
-		ciphertext, err := cipher.Encrypt(message, aad)
+		ciphertext, err := cipher.Encrypt(message, associatedData)
 		if err != nil {
 			t.Fatalf("encryption failed, error: %v", err)
 		}
@@ -199,7 +236,7 @@ func TestETAEncryptDecryptRandomMessage(t *testing.T) {
 			t.Errorf("invalid ciphertext size, got: %d, want: %d", len(ciphertext), len(message)+ivSize+tagSize)
 		}
 
-		plaintext, err := cipher.Decrypt(ciphertext, aad)
+		plaintext, err := cipher.Decrypt(ciphertext, associatedData)
 		if err != nil {
 			t.Fatalf("decryption failed, error: %v", err)
 		}
@@ -222,14 +259,14 @@ func TestETAMultipleEncrypt(t *testing.T) {
 	}
 
 	message := []byte("Some data to encrypt.")
-	aad := []byte("Some data to authenticate.")
+	associatedData := []byte("Some data to authenticate.")
 
-	ciphertext1, err := cipher.Encrypt(message, aad)
+	ciphertext1, err := cipher.Encrypt(message, associatedData)
 	if err != nil {
 		t.Fatalf("encryption failed, error: %v", err)
 	}
 
-	ciphertext2, err := cipher.Encrypt(message, aad)
+	ciphertext2, err := cipher.Encrypt(message, associatedData)
 	if err != nil {
 		t.Fatalf("encryption failed, error: %v", err)
 	}
@@ -262,52 +299,52 @@ func TestETADecryptModifiedCiphertext(t *testing.T) {
 	}
 
 	message := []byte("Some data to encrypt.")
-	aad := []byte("Some data to authenticate.")
-	ciphertext, err := cipher.Encrypt(message, aad)
+	associatedData := []byte("Some data to authenticate.")
+	ciphertext, err := cipher.Encrypt(message, associatedData)
 	if err != nil {
 		t.Fatalf("encryption failed, error: %v", err)
 	}
 
 	// Modify the ciphertext and try to decrypt.
-	modct := make([]byte, len(ciphertext))
-	copy(modct, ciphertext)
+	modCiphertext := make([]byte, len(ciphertext))
+	copy(modCiphertext, ciphertext)
 	for i := 0; i < len(ciphertext)*8; i++ {
 		// Save the byte to be modified.
-		b := modct[i/8]
-		modct[i/8] ^= (1 << uint(i%8))
-		if bytes.Equal(ciphertext, modct) {
-			t.Errorf("modified ciphertext shouldn't be the same as aad")
+		b := modCiphertext[i/8]
+		modCiphertext[i/8] ^= (1 << uint(i%8))
+		if bytes.Equal(ciphertext, modCiphertext) {
+			t.Errorf("modCiphertext shouldn't be the same as ciphertext")
 		}
-		if _, err := cipher.Decrypt(modct, aad); err == nil {
+		if _, err := cipher.Decrypt(modCiphertext, associatedData); err == nil {
 			t.Errorf("successfully decrypted modified ciphertext (i = %d)", i)
 		}
 		// Restore the modified byte.
-		modct[i/8] = b
+		modCiphertext[i/8] = b
 	}
 
-	// Modify the additional authenticated data.
-	modaad := make([]byte, len(aad))
-	copy(modaad, aad)
-	for i := 0; i < len(aad)*8; i++ {
+	// Modify the associated data.
+	modAssociatedData := make([]byte, len(associatedData))
+	copy(modAssociatedData, associatedData)
+	for i := 0; i < len(associatedData)*8; i++ {
 		// Save the byte to be modified.
-		b := modaad[i/8]
-		modaad[i/8] ^= (1 << uint(i%8))
-		if bytes.Equal(aad, modaad) {
-			t.Errorf("modified aad shouldn't be the same as aad")
+		b := modAssociatedData[i/8]
+		modAssociatedData[i/8] ^= (1 << uint(i%8))
+		if bytes.Equal(associatedData, modAssociatedData) {
+			t.Errorf("modAssociatedData shouldn't be the same as associatedData")
 		}
-		if _, err := cipher.Decrypt(ciphertext, modaad); err == nil {
-			t.Errorf("successfully decrypted with modified aad (i = %d)", i)
+		if _, err := cipher.Decrypt(ciphertext, modAssociatedData); err == nil {
+			t.Errorf("successfully decrypted with modified associated data (i = %d)", i)
 		}
 		// Restore the modified byte.
-		modaad[i/8] = b
+		modAssociatedData[i/8] = b
 	}
 
 	// Truncate the ciphertext.
-	trunct := make([]byte, len(ciphertext))
-	copy(trunct, ciphertext)
+	truncatedCiphertext := make([]byte, len(ciphertext))
+	copy(truncatedCiphertext, ciphertext)
 	for i := 1; i <= len(ciphertext); i++ {
-		trunct = trunct[:len(ciphertext)-i]
-		if _, err := cipher.Decrypt(trunct, aad); err == nil {
+		truncatedCiphertext = truncatedCiphertext[:len(ciphertext)-i]
+		if _, err := cipher.Decrypt(truncatedCiphertext, associatedData); err == nil {
 			t.Errorf("successfully decrypted truncated ciphertext (i = %d)", i)
 		}
 	}
@@ -326,9 +363,9 @@ func TestETAEmptyParams(t *testing.T) {
 
 	message := []byte("Some data to encrypt.")
 	if _, err := cipher.Encrypt(message, []byte{}); err != nil {
-		t.Errorf("encryption failed with empty aad")
+		t.Errorf("encryption failed with empty associatedData")
 	}
 	if _, err := cipher.Encrypt([]byte{}, []byte{}); err != nil {
-		t.Errorf("encryption failed with empty ciphertext and aad")
+		t.Errorf("encryption failed with empty ciphertext and associatedData")
 	}
 }

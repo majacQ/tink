@@ -16,14 +16,20 @@
 
 #include "tink/aead/kms_envelope_aead.h"
 
+#include <stdint.h>
+
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/base/internal/endian.h"
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "tink/aead.h"
+#include "tink/aead/internal/aead_util.h"
 #include "tink/registry.h"
-#include "tink/util/errors.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "proto/tink.pb.h"
@@ -56,15 +62,19 @@ std::string GetEnvelopeCiphertext(absl::string_view encrypted_dek,
 util::StatusOr<std::unique_ptr<Aead>> KmsEnvelopeAead::New(
     const google::crypto::tink::KeyTemplate& dek_template,
     std::unique_ptr<Aead> remote_aead) {
+  if (!internal::IsSupportedKmsEnvelopeAeadDekKeyType(
+          dek_template.type_url())) {
+    return util::Status(absl::StatusCode::kInvalidArgument,
+                        "unsupported key type");
+  }
   if (remote_aead == nullptr) {
-    return util::Status(util::error::INVALID_ARGUMENT,
+    return util::Status(absl::StatusCode::kInvalidArgument,
                         "remote_aead must be non-null");
   }
   auto km_result = Registry::get_key_manager<Aead>(dek_template.type_url());
   if (!km_result.ok()) return km_result.status();
-  std::unique_ptr<Aead> envelope_aead(
+  return absl::WrapUnique(
       new KmsEnvelopeAead(dek_template, std::move(remote_aead)));
-  return std::move(envelope_aead);
 }
 
 util::StatusOr<std::string> KmsEnvelopeAead::Encrypt(
@@ -72,7 +82,7 @@ util::StatusOr<std::string> KmsEnvelopeAead::Encrypt(
   // Generate DEK.
   auto dek_result = Registry::NewKeyData(dek_template_);
   if (!dek_result.ok()) return dek_result.status();
-  auto dek = std::move(dek_result.ValueOrDie());
+  auto dek = std::move(dek_result.value());
 
   // Wrap DEK key values with remote.
   auto dek_encrypt_result =
@@ -82,48 +92,49 @@ util::StatusOr<std::string> KmsEnvelopeAead::Encrypt(
   // Encrypt plaintext using DEK.
   auto aead_result = Registry::GetPrimitive<Aead>(*dek);
   if (!aead_result.ok()) return aead_result.status();
-  auto aead = std::move(aead_result.ValueOrDie());
+  auto aead = std::move(aead_result.value());
   auto encrypt_result = aead->Encrypt(plaintext, associated_data);
   if (!encrypt_result.ok()) return encrypt_result.status();
 
   // Build and return ciphertext.
-  return GetEnvelopeCiphertext(dek_encrypt_result.ValueOrDie(),
-                               encrypt_result.ValueOrDie());
+  return GetEnvelopeCiphertext(dek_encrypt_result.value(),
+                               encrypt_result.value());
 }
 
 util::StatusOr<std::string> KmsEnvelopeAead::Decrypt(
     absl::string_view ciphertext, absl::string_view associated_data) const {
   // Parse the ciphertext.
   if (ciphertext.size() < kEncryptedDekPrefixSize) {
-    return util::Status(util::error::INVALID_ARGUMENT, "ciphertext too short");
+    return util::Status(absl::StatusCode::kInvalidArgument,
+                        "ciphertext too short");
   }
   auto enc_dek_size = absl::big_endian::Load32(
       reinterpret_cast<const uint8_t*>(ciphertext.data()));
   if (enc_dek_size > ciphertext.size() - kEncryptedDekPrefixSize ||
       enc_dek_size < 0) {
-    return util::Status(util::error::INVALID_ARGUMENT, "invalid ciphertext");
+    return util::Status(absl::StatusCode::kInvalidArgument,
+                        "invalid ciphertext");
   }
   // Decrypt the DEK with remote.
   auto dek_decrypt_result = remote_aead_->Decrypt(
       ciphertext.substr(kEncryptedDekPrefixSize, enc_dek_size),
       kEmptyAssociatedData);
   if (!dek_decrypt_result.ok()) {
-    return util::Status(
-        util::error::INVALID_ARGUMENT,
-        absl::StrCat("invalid ciphertext: ",
-                     dek_decrypt_result.status().error_message()));
+    return util::Status(absl::StatusCode::kInvalidArgument,
+                        absl::StrCat("invalid ciphertext: ",
+                                     dek_decrypt_result.status().message()));
   }
 
   // Create AEAD from DEK.
   google::crypto::tink::KeyData dek;
   dek.set_type_url(dek_template_.type_url());
-  dek.set_value(dek_decrypt_result.ValueOrDie());
+  dek.set_value(dek_decrypt_result.value());
   dek.set_key_material_type(google::crypto::tink::KeyData::SYMMETRIC);
 
   // Encrypt plaintext using DEK.
   auto aead_result = Registry::GetPrimitive<Aead>(dek);
   if (!aead_result.ok()) return aead_result.status();
-  auto aead = std::move(aead_result.ValueOrDie());
+  auto aead = std::move(aead_result.value());
   return aead->Decrypt(
       ciphertext.substr(kEncryptedDekPrefixSize + enc_dek_size),
       associated_data);

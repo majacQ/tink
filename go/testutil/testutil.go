@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 // Package testutil provides common methods needed in test code.
 package testutil
@@ -20,6 +18,7 @@ package testutil
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/gob"
 	"errors"
@@ -29,8 +28,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/crypto/ed25519"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/google/tink/go/core/registry"
 	subtledaead "github.com/google/tink/go/daead/subtle"
 	subtlehybrid "github.com/google/tink/go/hybrid/subtle"
@@ -45,6 +43,7 @@ import (
 	ctrhmacpb "github.com/google/tink/go/proto/aes_ctr_hmac_streaming_go_proto"
 	gcmpb "github.com/google/tink/go/proto/aes_gcm_go_proto"
 	gcmhkdfpb "github.com/google/tink/go/proto/aes_gcm_hkdf_streaming_go_proto"
+	gcmsivpb "github.com/google/tink/go/proto/aes_gcm_siv_go_proto"
 	aspb "github.com/google/tink/go/proto/aes_siv_go_proto"
 	commonpb "github.com/google/tink/go/proto/common_go_proto"
 	ecdsapb "github.com/google/tink/go/proto/ecdsa_go_proto"
@@ -64,7 +63,7 @@ var _ registry.KeyManager = (*DummyAEADKeyManager)(nil)
 
 // Primitive constructs a primitive instance for the key given in
 // serializedKey, which must be a serialized key protocol buffer handled by this manager.
-func (km *DummyAEADKeyManager) Primitive(serializedKey []byte) (interface{}, error) {
+func (km *DummyAEADKeyManager) Primitive(serializedKey []byte) (any, error) {
 	return new(DummyAEAD), nil
 }
 
@@ -90,8 +89,8 @@ func (km *DummyAEADKeyManager) TypeURL() string {
 
 // DummyAEAD is a dummy implementation of AEAD interface. It "encrypts" data
 // with a simple serialization capturing the dummy name, plaintext, and
-// additional data, and "decrypts" it by reversing this and checking that the
-// name and additional data match.
+// associated data, and "decrypts" it by reversing this and checking that the
+// name and associated data match.
 type DummyAEAD struct {
 	Name string
 }
@@ -99,17 +98,17 @@ type DummyAEAD struct {
 type dummyAEADData struct {
 	Name           string
 	Plaintext      []byte
-	AdditionalData []byte
+	AssociatedData []byte
 }
 
 // Encrypt encrypts the plaintext.
-func (a *DummyAEAD) Encrypt(plaintext []byte, additionalData []byte) ([]byte, error) {
+func (a *DummyAEAD) Encrypt(plaintext []byte, associatedData []byte) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	encoder := gob.NewEncoder(buf)
 	err := encoder.Encode(dummyAEADData{
 		Name:           a.Name,
 		Plaintext:      plaintext,
-		AdditionalData: additionalData,
+		AssociatedData: associatedData,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("dummy aead encrypt: %v", err)
@@ -118,16 +117,102 @@ func (a *DummyAEAD) Encrypt(plaintext []byte, additionalData []byte) ([]byte, er
 }
 
 // Decrypt decrypts the ciphertext.
-func (a *DummyAEAD) Decrypt(ciphertext []byte, additionalData []byte) ([]byte, error) {
+func (a *DummyAEAD) Decrypt(ciphertext []byte, associatedData []byte) ([]byte, error) {
 	data := dummyAEADData{}
 	decoder := gob.NewDecoder(bytes.NewBuffer(ciphertext))
 	if err := decoder.Decode(&data); err != nil {
 		return nil, fmt.Errorf("dummy aead decrypt: invalid data: %v", err)
 	}
-	if data.Name != a.Name || !bytes.Equal(data.AdditionalData, additionalData) {
-		return nil, errors.New("dummy aead encrypt: name/additional data mismatch")
+	if data.Name != a.Name || !bytes.Equal(data.AssociatedData, associatedData) {
+		return nil, errors.New("dummy aead encrypt: name/associated data mismatch")
 	}
 	return data.Plaintext, nil
+}
+
+// AlwaysFailingAead fails encryption and decryption operations.
+type AlwaysFailingAead struct {
+	Error error
+}
+
+var _ (tink.AEAD) = (*AlwaysFailingAead)(nil)
+
+// NewAlwaysFailingAead creates a new always failing AEAD.
+func NewAlwaysFailingAead(err error) tink.AEAD {
+	return &AlwaysFailingAead{Error: err}
+}
+
+// Encrypt returns an error on encryption.
+func (a *AlwaysFailingAead) Encrypt(plaintext []byte, associatedData []byte) ([]byte, error) {
+	return nil, fmt.Errorf("AlwaysFailingAead will always fail on encryption: %v", a.Error)
+}
+
+// Decrypt returns an error on decryption.
+func (a *AlwaysFailingAead) Decrypt(ciphertext []byte, associatedData []byte) ([]byte, error) {
+	return nil, fmt.Errorf("AlwaysFailingAead will always fail on decryption: %v", a.Error)
+}
+
+// AlwaysFailingDeterministicAead fails encryption and decryption operations.
+type AlwaysFailingDeterministicAead struct {
+	Error error
+}
+
+var _ (tink.DeterministicAEAD) = (*AlwaysFailingDeterministicAead)(nil)
+
+// NewAlwaysFailingDeterministicAead creates a new always failing AEAD.
+func NewAlwaysFailingDeterministicAead(err error) tink.DeterministicAEAD {
+	return &AlwaysFailingDeterministicAead{Error: err}
+}
+
+// EncryptDeterministically returns an error on encryption.
+func (a *AlwaysFailingDeterministicAead) EncryptDeterministically(plaintext []byte, associatedData []byte) ([]byte, error) {
+	return nil, fmt.Errorf("AlwaysFailingDeterministicAead will always fail on encryption: %v", a.Error)
+}
+
+// DecryptDeterministically returns an error on decryption.
+func (a *AlwaysFailingDeterministicAead) DecryptDeterministically(ciphertext []byte, associatedData []byte) ([]byte, error) {
+	return nil, fmt.Errorf("AlwaysFailingDeterministicAead will always fail on decryption: %v", a.Error)
+}
+
+// TestKeyManager is key manager which can be setup to return an arbitrary primitive for a type URL
+// useful for testing.
+type TestKeyManager struct {
+	primitive any
+	typeURL   string
+}
+
+var _ registry.KeyManager = (*TestKeyManager)(nil)
+
+// NewTestKeyManager creates a new key manager that returns a specific primitive for a typeURL.
+func NewTestKeyManager(primitive any, typeURL string) registry.KeyManager {
+	return &TestKeyManager{
+		primitive: primitive,
+		typeURL:   typeURL,
+	}
+}
+
+// Primitive constructs a primitive instance for the key given input key.
+func (km *TestKeyManager) Primitive(serializedKey []byte) (any, error) {
+	return km.primitive, nil
+}
+
+// NewKey generates a new key according to specification in serializedKeyFormat.
+func (km *TestKeyManager) NewKey(serializedKeyFormat []byte) (proto.Message, error) {
+	return nil, fmt.Errorf("TestKeyManager: not implemented")
+}
+
+// NewKeyData generates a new KeyData according to specification in serializedkeyFormat.
+func (km *TestKeyManager) NewKeyData(serializedKeyFormat []byte) (*tinkpb.KeyData, error) {
+	return nil, fmt.Errorf("TestKeyManager: not implemented")
+}
+
+// DoesSupport returns true if this KeyManager supports key type identified by typeURL.
+func (km *TestKeyManager) DoesSupport(typeURL string) bool {
+	return typeURL == km.typeURL
+}
+
+// TypeURL returns the type URL.
+func (km *TestKeyManager) TypeURL() string {
+	return km.typeURL
 }
 
 // DummySigner is a dummy implementation of the Signer interface.
@@ -168,17 +253,27 @@ type DummyMAC struct {
 	Name string
 }
 
-// ComputeMAC computes message authentication code (MAC) for {@code data}.
+// ComputeMAC computes an insecure message authentication code (MAC) for data.
 func (h *DummyMAC) ComputeMAC(data []byte) ([]byte, error) {
-	var m []byte
-	m = append(m, data...)
-	m = append(m, h.Name...)
-	return m, nil
+	return makeDummyMAC(data, h.Name), nil
 }
 
-// VerifyMAC verifies whether {@code mac} is a correct authentication code (MAC) for {@code data}.
+func makeDummyMAC(data []byte, name string) []byte {
+	m := make([]byte, 0, len(data)+len(name))
+	m = append(m, data...)
+	return append(m, name...)
+}
+
+// VerifyMAC verifies whether mac is a correct, although insecure, message
+// authentication code (MAC) for data.
 func (h *DummyMAC) VerifyMAC(mac []byte, data []byte) error {
-	return nil
+	want := makeDummyMAC(data, h.Name)
+	if bytes.Equal(mac, want) {
+		return nil
+	}
+	// This is intended for test use. If it fails, describe what MAC would be
+	// required to succeed.
+	return fmt.Errorf("VerifyMAC: mac = %x, requires %x", mac, want)
 }
 
 // DummyKMSClient is a dummy implementation of a KMS Client.
@@ -202,6 +297,12 @@ func NewTestAESGCMKeyset(primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkp
 	return NewTestKeyset(keyData, primaryOutputPrefixType)
 }
 
+// NewTestAESGCMSIVKeyset creates a new Keyset containing an AESGCMSIVKey.
+func NewTestAESGCMSIVKeyset(primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkpb.Keyset {
+	keyData := NewAESGCMSIVKeyData(16)
+	return NewTestKeyset(keyData, primaryOutputPrefixType)
+}
+
 // NewTestAESSIVKeyset creates a new Keyset containing an AesSivKey.
 func NewTestAESSIVKeyset(primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkpb.Keyset {
 	keyValue := random.GetRandomBytes(subtledaead.AESSIVKeySize)
@@ -218,8 +319,7 @@ func NewTestAESSIVKeyset(primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkp
 }
 
 // NewTestHMACKeyset creates a new Keyset containing a HMACKey.
-func NewTestHMACKeyset(tagSize uint32,
-	primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkpb.Keyset {
+func NewTestHMACKeyset(tagSize uint32, primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkpb.Keyset {
 	keyData := NewHMACKeyData(commonpb.HashType_SHA256, tagSize)
 	return NewTestKeyset(keyData, primaryOutputPrefixType)
 }
@@ -236,8 +336,7 @@ func NewTestAESGCMHKDFKeyset() *tinkpb.Keyset {
 }
 
 // NewTestKeyset creates a new test Keyset.
-func NewTestKeyset(keyData *tinkpb.KeyData,
-	primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkpb.Keyset {
+func NewTestKeyset(keyData *tinkpb.KeyData, primaryOutputPrefixType tinkpb.OutputPrefixType) *tinkpb.Keyset {
 	primaryKey := NewKey(keyData, tinkpb.KeyStatusType_ENABLED, 42, primaryOutputPrefixType)
 	rawKey := NewKey(keyData, tinkpb.KeyStatusType_ENABLED, 43, tinkpb.OutputPrefixType_RAW)
 	legacyKey := NewKey(keyData, tinkpb.KeyStatusType_ENABLED, 44, tinkpb.OutputPrefixType_LEGACY)
@@ -258,9 +357,7 @@ func NewDummyKey(keyID int, status tinkpb.KeyStatusType, outputPrefixType tinkpb
 }
 
 // NewECDSAParams creates a ECDSAParams with the specified parameters.
-func NewECDSAParams(hashType commonpb.HashType,
-	curve commonpb.EllipticCurveType,
-	encoding ecdsapb.EcdsaSignatureEncoding) *ecdsapb.EcdsaParams {
+func NewECDSAParams(hashType commonpb.HashType, curve commonpb.EllipticCurveType, encoding ecdsapb.EcdsaSignatureEncoding) *ecdsapb.EcdsaParams {
 	return &ecdsapb.EcdsaParams{
 		HashType: hashType,
 		Curve:    curve,
@@ -274,9 +371,7 @@ func NewECDSAKeyFormat(params *ecdsapb.EcdsaParams) *ecdsapb.EcdsaKeyFormat {
 }
 
 // NewECDSAPrivateKey creates a ECDSAPrivateKey with the specified paramaters.
-func NewECDSAPrivateKey(version uint32,
-	publicKey *ecdsapb.EcdsaPublicKey,
-	keyValue []byte) *ecdsapb.EcdsaPrivateKey {
+func NewECDSAPrivateKey(version uint32, publicKey *ecdsapb.EcdsaPublicKey, keyValue []byte) *ecdsapb.EcdsaPrivateKey {
 	return &ecdsapb.EcdsaPrivateKey{
 		Version:   version,
 		PublicKey: publicKey,
@@ -285,9 +380,7 @@ func NewECDSAPrivateKey(version uint32,
 }
 
 // NewECDSAPublicKey creates a ECDSAPublicKey with the specified paramaters.
-func NewECDSAPublicKey(version uint32,
-	params *ecdsapb.EcdsaParams,
-	x []byte, y []byte) *ecdsapb.EcdsaPublicKey {
+func NewECDSAPublicKey(version uint32, params *ecdsapb.EcdsaParams, x, y []byte) *ecdsapb.EcdsaPublicKey {
 	return &ecdsapb.EcdsaPublicKey{
 		Version: version,
 		Params:  params,
@@ -299,7 +392,10 @@ func NewECDSAPublicKey(version uint32,
 // NewRandomECDSAPrivateKey creates an ECDSAPrivateKey with randomly generated key material.
 func NewRandomECDSAPrivateKey(hashType commonpb.HashType, curve commonpb.EllipticCurveType) *ecdsapb.EcdsaPrivateKey {
 	curveName := commonpb.EllipticCurveType_name[int32(curve)]
-	priv, _ := ecdsa.GenerateKey(subtle.GetCurve(curveName), rand.Reader)
+	priv, err := ecdsa.GenerateKey(subtle.GetCurve(curveName), rand.Reader)
+	if err != nil {
+		panic(fmt.Sprintf("ecdsa.GenerateKey() failed: %v", err))
+	}
 	params := NewECDSAParams(hashType, curve, ecdsapb.EcdsaSignatureEncoding_DER)
 	publicKey := NewECDSAPublicKey(ECDSAVerifierKeyVersion, params, priv.X.Bytes(), priv.Y.Bytes())
 	return NewECDSAPrivateKey(ECDSASignerKeyVersion, publicKey, priv.D.Bytes())
@@ -321,7 +417,10 @@ func GetECDSAParamNames(params *ecdsapb.EcdsaParams) (string, string, string) {
 
 // NewED25519PrivateKey creates an ED25519PrivateKey with randomly generated key material.
 func NewED25519PrivateKey() *ed25519pb.Ed25519PrivateKey {
-	public, private, _ := ed25519.GenerateKey(rand.Reader)
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(fmt.Sprintf("ed25519.GenerateKey() failed: %v", err))
+	}
 	publicProto := &ed25519pb.Ed25519PublicKey{
 		Version:  ED25519SignerKeyVersion,
 		KeyValue: public,
@@ -363,14 +462,33 @@ func NewAESGCMKeyFormat(keySize uint32) *gcmpb.AesGcmKeyFormat {
 	}
 }
 
+// NewAESGCMSIVKey creates a randomly generated AESGCMSIVKey.
+func NewAESGCMSIVKey(keyVersion, keySize uint32) *gcmsivpb.AesGcmSivKey {
+	keyValue := random.GetRandomBytes(keySize)
+	return &gcmsivpb.AesGcmSivKey{
+		Version:  keyVersion,
+		KeyValue: keyValue,
+	}
+}
+
+// NewAESGCMSIVKeyData creates a KeyData containing a randomly generated AESGCMSIVKey.
+func NewAESGCMSIVKeyData(keySize uint32) *tinkpb.KeyData {
+	serializedKey, err := proto.Marshal(NewAESGCMSIVKey(AESGCMKeyVersion, keySize))
+	if err != nil {
+		log.Fatalf("NewAESGCMSIVKeyData(keySize=%d): Failed serializing proto; err=%v", keySize, err)
+	}
+	return NewKeyData(AESGCMTypeURL, serializedKey, tinkpb.KeyData_SYMMETRIC)
+}
+
+// NewAESGCMSIVKeyFormat returns a new AESGCMKeyFormat.
+func NewAESGCMSIVKeyFormat(keySize uint32) *gcmsivpb.AesGcmSivKeyFormat {
+	return &gcmsivpb.AesGcmSivKeyFormat{
+		KeySize: keySize,
+	}
+}
+
 // NewAESGCMHKDFKey creates a randomly generated AESGCMHKDFKey.
-func NewAESGCMHKDFKey(
-	keyVersion uint32,
-	keySize uint32,
-	derivedKeySize uint32,
-	hkdfHashType commonpb.HashType,
-	ciphertextSegmentSize uint32,
-) *gcmhkdfpb.AesGcmHkdfStreamingKey {
+func NewAESGCMHKDFKey(keyVersion, keySize, derivedKeySize uint32, hkdfHashType commonpb.HashType, ciphertextSegmentSize uint32) *gcmhkdfpb.AesGcmHkdfStreamingKey {
 	keyValue := random.GetRandomBytes(keySize)
 	return &gcmhkdfpb.AesGcmHkdfStreamingKey{
 		Version:  keyVersion,
@@ -384,12 +502,7 @@ func NewAESGCMHKDFKey(
 }
 
 // NewAESGCMHKDFKeyData creates a KeyData containing a randomly generated AESGCMHKDFKey.
-func NewAESGCMHKDFKeyData(
-	keySize uint32,
-	derivedKeySize uint32,
-	hkdfHashType commonpb.HashType,
-	ciphertextSegmentSize uint32,
-) *tinkpb.KeyData {
+func NewAESGCMHKDFKeyData(keySize, derivedKeySize uint32, hkdfHashType commonpb.HashType, ciphertextSegmentSize uint32) *tinkpb.KeyData {
 	serializedKey, err := proto.Marshal(NewAESGCMHKDFKey(AESGCMHKDFKeyVersion, keySize, derivedKeySize, hkdfHashType, ciphertextSegmentSize))
 	if err != nil {
 		log.Fatalf("failed serializing proto: %v", err)
@@ -398,12 +511,7 @@ func NewAESGCMHKDFKeyData(
 }
 
 // NewAESGCMHKDFKeyFormat returns a new AESGCMHKDFKeyFormat.
-func NewAESGCMHKDFKeyFormat(
-	keySize uint32,
-	derivedKeySize uint32,
-	hkdfHashType commonpb.HashType,
-	ciphertextSegmentSize uint32,
-) *gcmhkdfpb.AesGcmHkdfStreamingKeyFormat {
+func NewAESGCMHKDFKeyFormat(keySize, derivedKeySize uint32, hkdfHashType commonpb.HashType, ciphertextSegmentSize uint32) *gcmhkdfpb.AesGcmHkdfStreamingKeyFormat {
 	return &gcmhkdfpb.AesGcmHkdfStreamingKeyFormat{
 		KeySize: keySize,
 		Params: &gcmhkdfpb.AesGcmHkdfStreamingParams{
@@ -415,15 +523,7 @@ func NewAESGCMHKDFKeyFormat(
 }
 
 // NewAESCTRHMACKey creates a randomly generated AESCTRHMACKey.
-func NewAESCTRHMACKey(
-	keyVersion uint32,
-	keySize uint32,
-	hkdfHashType commonpb.HashType,
-	derivedKeySize uint32,
-	hashType commonpb.HashType,
-	tagSize uint32,
-	ciphertextSegmentSize uint32,
-) *ctrhmacpb.AesCtrHmacStreamingKey {
+func NewAESCTRHMACKey(keyVersion, keySize uint32, hkdfHashType commonpb.HashType, derivedKeySize uint32, hashType commonpb.HashType, tagSize, ciphertextSegmentSize uint32) *ctrhmacpb.AesCtrHmacStreamingKey {
 	keyValue := random.GetRandomBytes(keySize)
 	return &ctrhmacpb.AesCtrHmacStreamingKey{
 		Version:  keyVersion,
@@ -441,14 +541,7 @@ func NewAESCTRHMACKey(
 }
 
 // NewAESCTRHMACKeyFormat returns a new AESCTRHMACKeyFormat.
-func NewAESCTRHMACKeyFormat(
-	keySize uint32,
-	hkdfHashType commonpb.HashType,
-	derivedKeySize uint32,
-	hashType commonpb.HashType,
-	tagSize uint32,
-	ciphertextSegmentSize uint32,
-) *ctrhmacpb.AesCtrHmacStreamingKeyFormat {
+func NewAESCTRHMACKeyFormat(keySize uint32, hkdfHashType commonpb.HashType, derivedKeySize uint32, hashType commonpb.HashType, tagSize, ciphertextSegmentSize uint32) *ctrhmacpb.AesCtrHmacStreamingKeyFormat {
 	return &ctrhmacpb.AesCtrHmacStreamingKeyFormat{
 		KeySize: keySize,
 		Params: &ctrhmacpb.AesCtrHmacStreamingParams{
@@ -524,9 +617,13 @@ func NewAESCMACKeyFormat(tagSize uint32) *cmacpb.AesCmacKeyFormat {
 func NewHMACKeysetManager() *keyset.Manager {
 	ksm := keyset.NewManager()
 	kt := mac.HMACSHA256Tag128KeyTemplate()
-	err := ksm.Rotate(kt)
+	keyID, err := ksm.Add(kt)
 	if err != nil {
-		panic(fmt.Sprintf("cannot rotate keyset manager: %s", err))
+		panic(fmt.Sprintf("cannot add key: %v", err))
+	}
+	err = ksm.SetPrimary(keyID)
+	if err != nil {
+		panic(fmt.Sprintf("cannot set primary key: %v", err))
 	}
 	return ksm
 }
@@ -620,9 +717,7 @@ func NewAESCMACPRFKeyFormat() *aescmacprfpb.AesCmacPrfKeyFormat {
 }
 
 // NewKeyData creates a new KeyData with the specified parameters.
-func NewKeyData(typeURL string,
-	value []byte,
-	materialType tinkpb.KeyData_KeyMaterialType) *tinkpb.KeyData {
+func NewKeyData(typeURL string, value []byte, materialType tinkpb.KeyData_KeyMaterialType) *tinkpb.KeyData {
 	return &tinkpb.KeyData{
 		TypeUrl:         typeURL,
 		Value:           value,
@@ -631,10 +726,7 @@ func NewKeyData(typeURL string,
 }
 
 // NewKey creates a new Key with the specified parameters.
-func NewKey(keyData *tinkpb.KeyData,
-	status tinkpb.KeyStatusType,
-	keyID uint32,
-	prefixType tinkpb.OutputPrefixType) *tinkpb.Keyset_Key {
+func NewKey(keyData *tinkpb.KeyData, status tinkpb.KeyStatusType, keyID uint32, prefixType tinkpb.OutputPrefixType) *tinkpb.Keyset_Key {
 	return &tinkpb.Keyset_Key{
 		KeyData:          keyData,
 		Status:           status,
@@ -644,8 +736,7 @@ func NewKey(keyData *tinkpb.KeyData,
 }
 
 // NewKeyset creates a new Keyset with the specified parameters.
-func NewKeyset(primaryKeyID uint32,
-	keys []*tinkpb.Keyset_Key) *tinkpb.Keyset {
+func NewKeyset(primaryKeyID uint32, keys []*tinkpb.Keyset_Key) *tinkpb.Keyset {
 	return &tinkpb.Keyset{
 		PrimaryKeyId: primaryKeyID,
 		Key:          keys,
@@ -654,24 +745,24 @@ func NewKeyset(primaryKeyID uint32,
 
 // GenerateMutations generates different byte mutations for a given byte array.
 func GenerateMutations(src []byte) (all [][]byte) {
-	n := make([]byte, len(src))
-
 	// Flip bits
 	for i := 0; i < len(src); i++ {
 		for j := 0; j < 8; j++ {
+			n := make([]byte, len(src))
 			copy(n, src)
 			n[i] = n[i] ^ (1 << uint8(j))
 			all = append(all, n)
 		}
 	}
 
-	//truncate bytes
-	for i := 0; i < len(src); i++ {
+	// Truncate bytes
+	for i := 1; i < len(src); i++ {
+		n := make([]byte, len(src[i:]))
 		copy(n, src[i:])
 		all = append(all, n)
 	}
 
-	//append extra byte
+	// Append extra byte
 	m := make([]byte, len(src)+1)
 	copy(m, src)
 	all = append(all, m)
@@ -734,8 +825,7 @@ func rotate(bytes []byte) []byte {
 //
 // Note: Having a correlation of zero is only a necessary but not sufficient
 // condition for independence.
-func ZTestCrosscorrelationUniformStrings(bytes1,
-	bytes2 []byte) error {
+func ZTestCrosscorrelationUniformStrings(bytes1, bytes2 []byte) error {
 	if len(bytes1) != len(bytes2) {
 		return fmt.Errorf(
 			"Strings are not of equal length")
@@ -817,6 +907,5 @@ func GenerateECIESAEADHKDFPrivateKey(c commonpb.EllipticCurveType, ht commonpb.H
 		return nil, err
 	}
 	pubKey := eciesAEADHKDFPublicKey(c, ht, ptfmt, dekT, pvt.PublicKey.Point.X.Bytes(), pvt.PublicKey.Point.Y.Bytes(), salt)
-	//fmt.Println(proto.MarshalTextString(pubKey))
 	return eciesAEADHKDFPrivateKey(pubKey, pvt.D.Bytes()), nil
 }

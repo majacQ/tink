@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package aead_test
 
@@ -21,17 +19,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/core/registry"
+	"github.com/google/tink/go/internal/tinkerror/tinkerrortest"
 	"github.com/google/tink/go/keyset"
+	"github.com/google/tink/go/mac"
 	"github.com/google/tink/go/testing/fakekms"
-	"github.com/google/tink/go/testutil"
 	tinkpb "github.com/google/tink/go/proto/tink_go_proto"
 )
 
 func TestKeyTemplates(t *testing.T) {
-	testutil.SkipTestIfTestSrcDirIsNotSet(t)
 	var testCases = []struct {
 		name     string
 		template *tinkpb.KeyTemplate
@@ -42,6 +39,18 @@ func TestKeyTemplates(t *testing.T) {
 		}, {
 			name:     "AES256_GCM",
 			template: aead.AES256GCMKeyTemplate(),
+		}, {
+			name:     "AES256_GCM_NO_PREFIX",
+			template: aead.AES256GCMNoPrefixKeyTemplate(),
+		}, {
+			name:     "AES128_GCM_SIV",
+			template: aead.AES128GCMSIVKeyTemplate(),
+		}, {
+			name:     "AES256_GCM_SIV",
+			template: aead.AES256GCMSIVKeyTemplate(),
+		}, {
+			name:     "AES256_GCM_SIV_NO_PREFIX",
+			template: aead.AES256GCMSIVNoPrefixKeyTemplate(),
 		}, {
 			name:     "AES128_CTR_HMAC_SHA256",
 			template: aead.AES128CTRHMACSHA256KeyTemplate(),
@@ -58,41 +67,6 @@ func TestKeyTemplates(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			want, err := testutil.KeyTemplateProto("aead", tc.name)
-			if err != nil {
-				t.Fatalf(err.Error())
-			}
-			if !proto.Equal(want, tc.template) {
-				t.Errorf("template %s is not equal to '%s'", tc.name, tc.template)
-			}
-			if err := testEncryptDecrypt(tc.template); err != nil {
-				t.Errorf("%v", err)
-			}
-		})
-	}
-}
-
-func TestNoPrefixKeyTemplates(t *testing.T) {
-	testutil.SkipTestIfTestSrcDirIsNotSet(t)
-	var testCases = []struct {
-		name     string
-		template *tinkpb.KeyTemplate
-	}{
-		{
-			name:     "AES256_GCM",
-			template: aead.AES256GCMNoPrefixKeyTemplate(),
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			want, err := testutil.KeyTemplateProto("aead", tc.name)
-			if err != nil {
-				t.Fatalf("testutil.KeyTemplateProto('aead', tc.name) failed: %s", err)
-			}
-			want.OutputPrefixType = tinkpb.OutputPrefixType_RAW
-			if !proto.Equal(want, tc.template) {
-				t.Errorf("template %s is not equal to '%s'", tc.name, tc.template)
-			}
 			if err := testEncryptDecrypt(tc.template); err != nil {
 				t.Errorf("%v", err)
 			}
@@ -112,16 +86,25 @@ func TestKMSEnvelopeAEADKeyTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fakekms.NewKeyURI() failed: %v", err)
 	}
+	fixedKeyTemplate, err := aead.CreateKMSEnvelopeAEADKeyTemplate(fixedKeyURI, aead.AES128GCMKeyTemplate())
+	if err != nil {
+		t.Fatalf("CreateKMSEnvelopeAEADKeyTemplate() err = %v", err)
+	}
+	newKeyTemplate, err := aead.CreateKMSEnvelopeAEADKeyTemplate(newKeyURI, aead.AES128GCMKeyTemplate())
+	if err != nil {
+		t.Fatalf("CreateKMSEnvelopeAEADKeyTemplate() err = %v", err)
+	}
+
 	var testCases = []struct {
 		name     string
 		template *tinkpb.KeyTemplate
 	}{
 		{
 			name:     "Fixed Fake KMS Envelope AEAD Key with AES128_GCM",
-			template: aead.KMSEnvelopeAEADKeyTemplate(fixedKeyURI, aead.AES128GCMKeyTemplate()),
+			template: fixedKeyTemplate,
 		}, {
 			name:     "New Fake KMS Envelope AEAD Key with AES128_GCM",
-			template: aead.KMSEnvelopeAEADKeyTemplate(newKeyURI, aead.AES128GCMKeyTemplate()),
+			template: newKeyTemplate,
 		},
 	}
 	for _, tc := range testCases {
@@ -136,8 +119,8 @@ func TestKMSEnvelopeAEADKeyTemplate(t *testing.T) {
 	}
 }
 
-// Tests that two KMSEnvelopeAEAD keys that use the same KEK and DEK template should be able to
-// decrypt each  other's ciphertexts.
+// Tests that two KMSEnvelopeAEAD keys that use the same KEK and DEK template
+// should be able to decrypt each other's ciphertexts.
 func TestKMSEnvelopeAEADKeyTemplateMultipleKeysSameKEK(t *testing.T) {
 	fakeKmsClient, err := fakekms.NewClient("fake-kms://")
 	if err != nil {
@@ -146,7 +129,108 @@ func TestKMSEnvelopeAEADKeyTemplateMultipleKeysSameKEK(t *testing.T) {
 	registry.RegisterKMSClient(fakeKmsClient)
 
 	fixedKeyURI := "fake-kms://CM2b3_MDElQKSAowdHlwZS5nb29nbGVhcGlzLmNvbS9nb29nbGUuY3J5cHRvLnRpbmsuQWVzR2NtS2V5EhIaEIK75t5L-adlUwVhWvRuWUwYARABGM2b3_MDIAE"
-	template1 := aead.KMSEnvelopeAEADKeyTemplate(fixedKeyURI, aead.AES128GCMKeyTemplate())
+	template1, err := aead.CreateKMSEnvelopeAEADKeyTemplate(fixedKeyURI, aead.AES128GCMKeyTemplate())
+	if err != nil {
+		t.Fatalf("CreateKMSEnvelopeAEADKeyTemplate() err = %v", err)
+	}
+	template2, err := aead.CreateKMSEnvelopeAEADKeyTemplate(fixedKeyURI, aead.AES128GCMKeyTemplate())
+	if err != nil {
+		t.Fatalf("CreateKMSEnvelopeAEADKeyTemplate() err = %v", err)
+	}
+
+	handle1, err := keyset.NewHandle(template1)
+	if err != nil {
+		t.Fatalf("keyset.NewHandle(template1) failed: %v", err)
+	}
+	aead1, err := aead.New(handle1)
+	if err != nil {
+		t.Fatalf("aead.New(handle) failed: %v", err)
+	}
+
+	handle2, err := keyset.NewHandle(template2)
+	if err != nil {
+		t.Fatalf("keyset.NewHandle(template2) failed: %v", err)
+	}
+	aead2, err := aead.New(handle2)
+	if err != nil {
+		t.Fatalf("aead.New(handle) failed: %v", err)
+	}
+
+	plaintext := []byte("some data to encrypt")
+	aad := []byte("extra data to authenticate")
+
+	ciphertext, err := aead1.Encrypt(plaintext, aad)
+	if err != nil {
+		t.Fatalf("encryption failed, error: %v", err)
+	}
+	decrypted, err := aead2.Decrypt(ciphertext, aad)
+	if err != nil {
+		t.Fatalf("decryption failed, error: %v", err)
+	}
+	if !bytes.Equal(plaintext, decrypted) {
+		t.Fatalf("decrypted data doesn't match plaintext, got: %q, want: %q", decrypted, plaintext)
+	}
+}
+
+// This test shows how migrate away from CreateKMSEnvelopeAEADKeyTemplate.
+func TestMigrateFromCreateKMSEnvelopeAEADKeyTemplateToNewKMSEnvelopeAEAD2(t *testing.T) {
+	kmsClient, err := fakekms.NewClient("fake-kms://")
+	if err != nil {
+		t.Fatalf("fakekms.NewClient('fake-kms://') failed: %v", err)
+	}
+	kekURI := "fake-kms://CM2b3_MDElQKSAowdHlwZS5nb29nbGVhcGlzLmNvbS9nb29nbGUuY3J5cHRvLnRpbmsuQWVzR2NtS2V5EhIaEIK75t5L-adlUwVhWvRuWUwYARABGM2b3_MDIAE"
+
+	// This code:
+	registry.RegisterKMSClient(kmsClient)
+	kmsEnvelopeAEADTemplate, err := aead.CreateKMSEnvelopeAEADKeyTemplate(kekURI, aead.AES128GCMKeyTemplate())
+	if err != nil {
+		t.Fatalf("CreateKMSEnvelopeAEADKeyTemplate() failed: %v", err)
+	}
+	handle, err := keyset.NewHandle(kmsEnvelopeAEADTemplate)
+	if err != nil {
+		t.Fatalf("keyset.NewHandle(kmsEnvelopeAEADTemplate) failed: %v", err)
+	}
+	aead1, err := aead.New(handle)
+	if err != nil {
+		t.Fatalf("aead.New(handle) failed: %v", err)
+	}
+	// can be replace by this:
+	kekAEAD, err := kmsClient.GetAEAD(kekURI)
+	if err != nil {
+		t.Fatalf("kmsClient.GetAEAD(kekURI) failed: %v", err)
+	}
+	aead2 := aead.NewKMSEnvelopeAEAD2(aead.AES128GCMKeyTemplate(), kekAEAD)
+
+	// Check that aead1 and aead2 are compatible.
+	plaintext := []byte("plaintext")
+	associatedData := []byte("associatedData")
+
+	ciphertext, err := aead1.Encrypt(plaintext, associatedData)
+	if err != nil {
+		t.Fatalf("aead1.Encrypt(plaintext, associatedData) failed: %v", err)
+	}
+	decrypted, err := aead2.Decrypt(ciphertext, associatedData)
+	if err != nil {
+		t.Fatalf("aead2.Decrypt(ciphertext, associatedData) failed: %v", err)
+	}
+	if !bytes.Equal(plaintext, decrypted) {
+		t.Fatalf("decrypted data doesn't match plaintext, got: %q, want: %q", decrypted, plaintext)
+	}
+}
+
+// Testing deprecated function, ignoring GoDeprecated.
+func TestCreateKMSEnvelopeAEADKeyTemplateCompatibleWithKMSEnevelopeAEADKeyTemplate(t *testing.T) {
+	fakeKmsClient, err := fakekms.NewClient("fake-kms://")
+	if err != nil {
+		t.Fatalf("fakekms.NewClient('fake-kms://') failed: %v", err)
+	}
+	registry.RegisterKMSClient(fakeKmsClient)
+
+	fixedKeyURI := "fake-kms://CM2b3_MDElQKSAowdHlwZS5nb29nbGVhcGlzLmNvbS9nb29nbGUuY3J5cHRvLnRpbmsuQWVzR2NtS2V5EhIaEIK75t5L-adlUwVhWvRuWUwYARABGM2b3_MDIAE"
+	template1, err := aead.CreateKMSEnvelopeAEADKeyTemplate(fixedKeyURI, aead.AES128GCMKeyTemplate())
+	if err != nil {
+		t.Fatalf("CreateKMSEnvelopeAEADKeyTemplate() err = %v", err)
+	}
 	template2 := aead.KMSEnvelopeAEADKeyTemplate(fixedKeyURI, aead.AES128GCMKeyTemplate())
 
 	handle1, err := keyset.NewHandle(template1)
@@ -180,6 +264,51 @@ func TestKMSEnvelopeAEADKeyTemplateMultipleKeysSameKEK(t *testing.T) {
 	}
 	if !bytes.Equal(plaintext, decrypted) {
 		t.Fatalf("decrypted data doesn't match plaintext, got: %q, want: %q", decrypted, plaintext)
+	}
+}
+
+// Testing deprecated function, ignoring GoDeprecated.
+func TestKMSEnvelopeAEADKeyTemplateFails(t *testing.T) {
+	keyURI, err := fakekms.NewKeyURI()
+	if err != nil {
+		t.Fatalf("fakekms.NewKeyURI() err = %v", err)
+	}
+	invalidTemplate := &tinkpb.KeyTemplate{
+		// String fields cannot contain invalid UTF-8 characters.
+		TypeUrl: "\xff",
+	}
+	var template *tinkpb.KeyTemplate
+	err = tinkerrortest.RecoverFromFail(func() {
+		template = aead.KMSEnvelopeAEADKeyTemplate(keyURI, invalidTemplate)
+	})
+	if err == nil {
+		t.Errorf("aead.KMSEnvelopAEADKeyTemplate() err = nil, want non-nil")
+	}
+	t.Logf("template: %+v", template)
+}
+
+func TestCreateKMSEnvelopeAEADKeyTemplateFails(t *testing.T) {
+	keyURI, err := fakekms.NewKeyURI()
+	if err != nil {
+		t.Fatalf("fakekms.NewKeyURI() err = %v", err)
+	}
+	invalidTemplate := &tinkpb.KeyTemplate{
+		// String fields cannot contain invalid UTF-8 characters.
+		TypeUrl: "\xff",
+	}
+	if _, err := aead.CreateKMSEnvelopeAEADKeyTemplate(keyURI, invalidTemplate); err == nil {
+		t.Errorf("aead.CreateKMSEnvelopAEADKeyTemplate(keyURI, invalidTemplate) err = nil, want non-nil")
+	}
+}
+
+func TestCreateKMSEnvelopeAEADKeyTemplateWithUnsupportedTemplateFails(t *testing.T) {
+	keyURI, err := fakekms.NewKeyURI()
+	if err != nil {
+		t.Fatalf("fakekms.NewKeyURI() err = %v", err)
+	}
+	unsupportedTemplate := mac.HMACSHA256Tag128KeyTemplate()
+	if _, err := aead.CreateKMSEnvelopeAEADKeyTemplate(keyURI, unsupportedTemplate); err == nil {
+		t.Errorf("aead.CreateKMSEnvelopAEADKeyTemplate(keyURI, unsupportedTemplate) err = nil, want non-nil")
 	}
 }
 

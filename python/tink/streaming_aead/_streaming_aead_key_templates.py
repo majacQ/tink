@@ -23,10 +23,7 @@ handle = keyset_handle.KeysetHandle(
   streaming_aead_key_templates.AES256_CTR_HMAC_SHA256_4KB).
 """
 
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
+import warnings
 
 from tink.proto import aes_ctr_hmac_streaming_pb2
 from tink.proto import aes_gcm_hkdf_streaming_pb2
@@ -41,7 +38,7 @@ SEGMENT_SIZE_1MB = 1024 * 1024
 SEGMENT_SIZE_4KB = 4 * 1024
 
 
-def create_aes_gcm_hkdf_streaming_key_template(
+def _create_aes_gcm_hkdf_streaming_key_template(
     aes_key_size: int, hash_type: common_pb2.HashType, derived_key_size: int,
     ciphertext_segment_size: int) -> tink_pb2.KeyTemplate:
   """Creates an AES GCM HKDF Streaming KeyTemplate, and fills in its values."""
@@ -51,14 +48,15 @@ def create_aes_gcm_hkdf_streaming_key_template(
   key_format.params.derived_key_size = derived_key_size
   key_format.params.ciphertext_segment_size = ciphertext_segment_size
 
-  key_template = tink_pb2.KeyTemplate()
-  key_template.value = key_format.SerializeToString()
-  key_template.type_url = _AES_GCM_HKDF_STREAMING_KEY_TYPE_URL
-  key_template.output_prefix_type = tink_pb2.RAW
+  key_template = tink_pb2.KeyTemplate(
+      value=key_format.SerializeToString(),
+      type_url=_AES_GCM_HKDF_STREAMING_KEY_TYPE_URL,
+      output_prefix_type=tink_pb2.RAW,
+  )
   return key_template
 
 
-def create_aes_ctr_hmac_streaming_key_template(
+def _create_aes_ctr_hmac_streaming_key_template(
     aes_key_size: int, hkdf_hash_type: common_pb2.HashType,
     derived_key_size: int, mac_hash_type: common_pb2.HashType, tag_size: int,
     ciphertext_segment_size: int) -> tink_pb2.KeyTemplate:
@@ -73,38 +71,39 @@ def create_aes_ctr_hmac_streaming_key_template(
   key_format.params.hmac_params.hash = mac_hash_type
   key_format.params.hmac_params.tag_size = tag_size
 
-  key_template = tink_pb2.KeyTemplate()
-  key_template.value = key_format.SerializeToString()
-  key_template.type_url = _AES_CTR_HMAC_STREAMING_KEY_TYPE_URL
-  key_template.output_prefix_type = tink_pb2.RAW
+  key_template = tink_pb2.KeyTemplate(
+      value=key_format.SerializeToString(),
+      type_url=_AES_CTR_HMAC_STREAMING_KEY_TYPE_URL,
+      output_prefix_type=tink_pb2.RAW,
+  )
   return key_template
 
 
-AES128_GCM_HKDF_4KB = create_aes_gcm_hkdf_streaming_key_template(
+AES128_GCM_HKDF_4KB = _create_aes_gcm_hkdf_streaming_key_template(
     aes_key_size=16,
     hash_type=common_pb2.HashType.SHA256,
     derived_key_size=16,
     ciphertext_segment_size=SEGMENT_SIZE_4KB)
 
-AES128_GCM_HKDF_1MB = create_aes_gcm_hkdf_streaming_key_template(
+AES128_GCM_HKDF_1MB = _create_aes_gcm_hkdf_streaming_key_template(
     aes_key_size=16,
     hash_type=common_pb2.HashType.SHA256,
     derived_key_size=16,
     ciphertext_segment_size=SEGMENT_SIZE_1MB)
 
-AES256_GCM_HKDF_4KB = create_aes_gcm_hkdf_streaming_key_template(
+AES256_GCM_HKDF_4KB = _create_aes_gcm_hkdf_streaming_key_template(
     aes_key_size=32,
     hash_type=common_pb2.HashType.SHA256,
     derived_key_size=32,
     ciphertext_segment_size=SEGMENT_SIZE_4KB)
 
-AES256_GCM_HKDF_1MB = create_aes_gcm_hkdf_streaming_key_template(
+AES256_GCM_HKDF_1MB = _create_aes_gcm_hkdf_streaming_key_template(
     aes_key_size=32,
     hash_type=common_pb2.HashType.SHA256,
     derived_key_size=32,
     ciphertext_segment_size=SEGMENT_SIZE_1MB)
 
-AES128_CTR_HMAC_SHA256_4KB = create_aes_ctr_hmac_streaming_key_template(
+AES128_CTR_HMAC_SHA256_4KB = _create_aes_ctr_hmac_streaming_key_template(
     aes_key_size=16,
     hkdf_hash_type=common_pb2.HashType.SHA256,
     derived_key_size=16,
@@ -112,7 +111,7 @@ AES128_CTR_HMAC_SHA256_4KB = create_aes_ctr_hmac_streaming_key_template(
     tag_size=32,
     ciphertext_segment_size=SEGMENT_SIZE_4KB)
 
-AES128_CTR_HMAC_SHA256_1MB = create_aes_ctr_hmac_streaming_key_template(
+AES128_CTR_HMAC_SHA256_1MB = _create_aes_ctr_hmac_streaming_key_template(
     aes_key_size=16,
     hkdf_hash_type=common_pb2.HashType.SHA256,
     derived_key_size=16,
@@ -120,7 +119,7 @@ AES128_CTR_HMAC_SHA256_1MB = create_aes_ctr_hmac_streaming_key_template(
     tag_size=32,
     ciphertext_segment_size=SEGMENT_SIZE_1MB)
 
-AES256_CTR_HMAC_SHA256_4KB = create_aes_ctr_hmac_streaming_key_template(
+AES256_CTR_HMAC_SHA256_4KB = _create_aes_ctr_hmac_streaming_key_template(
     aes_key_size=32,
     hkdf_hash_type=common_pb2.HashType.SHA256,
     derived_key_size=32,
@@ -128,7 +127,7 @@ AES256_CTR_HMAC_SHA256_4KB = create_aes_ctr_hmac_streaming_key_template(
     tag_size=32,
     ciphertext_segment_size=SEGMENT_SIZE_4KB)
 
-AES256_CTR_HMAC_SHA256_1MB = create_aes_ctr_hmac_streaming_key_template(
+AES256_CTR_HMAC_SHA256_1MB = _create_aes_ctr_hmac_streaming_key_template(
     aes_key_size=32,
     hkdf_hash_type=common_pb2.HashType.SHA256,
     derived_key_size=32,
@@ -136,3 +135,29 @@ AES256_CTR_HMAC_SHA256_1MB = create_aes_ctr_hmac_streaming_key_template(
     tag_size=32,
     ciphertext_segment_size=SEGMENT_SIZE_1MB)
 
+
+# Deprecated. Use the predefined constant templates above instead.
+def create_aes_gcm_hkdf_streaming_key_template(
+    aes_key_size: int, hash_type: common_pb2.HashType, derived_key_size: int,
+    ciphertext_segment_size: int) -> tink_pb2.KeyTemplate:
+  warnings.warn(
+      'The create_aes_gcm_hkdf_streaming_key_template function is deprecated.',
+      DeprecationWarning, 2)
+  return _create_aes_gcm_hkdf_streaming_key_template(aes_key_size, hash_type,
+                                                     derived_key_size,
+                                                     ciphertext_segment_size)
+
+
+# Deprecated. Use the predefined constant templates above instead.
+def create_aes_ctr_hmac_streaming_key_template(
+    aes_key_size: int, hkdf_hash_type: common_pb2.HashType,
+    derived_key_size: int, mac_hash_type: common_pb2.HashType, tag_size: int,
+    ciphertext_segment_size: int) -> tink_pb2.KeyTemplate:
+  warnings.warn(
+      'The create_aes_ctr_hmac_streaming_key_template function is deprecated.',
+      DeprecationWarning, 2)
+  return _create_aes_ctr_hmac_streaming_key_template(aes_key_size,
+                                                     hkdf_hash_type,
+                                                     derived_key_size,
+                                                     mac_hash_type, tag_size,
+                                                     ciphertext_segment_size)

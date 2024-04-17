@@ -18,6 +18,9 @@
 #define TINK_JSON_KEYSET_READER_H_
 
 #include <istream>
+#include <memory>
+#include <string>
+#include <utility>
 
 #include "absl/strings/string_view.h"
 #include "tink/keyset_reader.h"

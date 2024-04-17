@@ -17,6 +17,8 @@
 #ifndef TINK_MAC_H_
 #define TINK_MAC_H_
 
+#include <string>
+
 #include "absl/strings/string_view.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
@@ -40,7 +42,7 @@ class Mac {
       absl::string_view mac_value,
       absl::string_view data) const = 0;
 
-  virtual ~Mac() {}
+  virtual ~Mac() = default;
 };
 
 }  // namespace tink

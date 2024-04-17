@@ -22,6 +22,9 @@ import static org.junit.Assert.assertThrows;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.Test;
@@ -79,10 +82,61 @@ public final class RawJwtTest {
   }
 
   @Test
+  public void setAudience_success() throws Exception {
+    RawJwt token = RawJwt.newBuilder().setAudience("foo").withoutExpiration().build();
+    assertThat(token.hasAudiences()).isTrue();
+    assertThat(token.getAudiences()).containsExactly("foo");
+  }
+
+  @Test
+  public void setAudiences_success() throws Exception {
+    RawJwt token =
+        RawJwt.newBuilder().setAudiences(Arrays.asList("foo", "bar")).withoutExpiration().build();
+    assertThat(token.hasAudiences()).isTrue();
+    assertThat(token.getAudiences()).containsExactly("foo", "bar");
+  }
+
+  @Test
+  public void callStringAndListAudienceMethodsTogether_fail() throws Exception {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> RawJwt.newBuilder().setAudience("a").setAudiences(Arrays.asList("b")));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> RawJwt.newBuilder().setAudiences(Arrays.asList("b")).setAudience("a"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> RawJwt.newBuilder().setAudience("a").addAudience("b"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> RawJwt.newBuilder().addAudience("a").setAudience("b"));
+  }
+
+  @Test
+  public void setAudiencesAndAddAudience_appendToList() throws Exception {
+    RawJwt token =
+        RawJwt.newBuilder()
+            .setAudiences(Arrays.asList("a", "b"))
+            .addAudience("c")
+            .withoutExpiration()
+            .build();
+    assertThat(token.hasAudiences()).isTrue();
+    assertThat(token.getAudiences()).containsExactly("a", "b", "c");
+  }
+
+  @Test
+  public void setEmptyAudiences_fails() throws Exception {
+    List<String> emptyList = new ArrayList<>();
+    assertThrows(IllegalArgumentException.class, () -> RawJwt.newBuilder().setAudiences(emptyList));
+  }
+
+  @Test
   public void setNullNameOrValue_shouldThrow() throws Exception {
     assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().setIssuer(null));
     assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().setSubject(null));
     assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().addAudience(null));
+    assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().setAudience(null));
+    assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().setAudiences(null));
     assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().setJwtId(null));
     assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().setExpiration(null));
     assertThrows(NullPointerException.class, () -> RawJwt.newBuilder().setNotBefore(null));
@@ -109,6 +163,10 @@ public final class RawJwtTest {
     assertThrows(IllegalArgumentException.class, () -> token.setIssuer("\uD834"));
     assertThrows(IllegalArgumentException.class, () -> token.setSubject("\uD834"));
     assertThrows(IllegalArgumentException.class, () -> token.addAudience("\uD834"));
+    assertThrows(IllegalArgumentException.class, () -> token.setAudience("\uD834"));
+    List<String> audiences = new ArrayList<>();
+    audiences.add("\uD834");
+    assertThrows(IllegalArgumentException.class, () -> token.setAudiences(audiences));
     assertThrows(IllegalArgumentException.class, () -> token.setJwtId("\uD834"));
     assertThrows(IllegalArgumentException.class, () -> token.addStringClaim("claim", "\uD834"));
     assertThrows(JwtInvalidException.class, () -> token.addJsonArrayClaim("claim", "[\"\uD834\"]"));
@@ -136,49 +194,49 @@ public final class RawJwtTest {
   public void addStringClaim_issuer_shouldThrow() throws Exception {
     assertThrows(
         IllegalArgumentException.class,
-        () -> RawJwt.newBuilder().addStringClaim(JwtNames.CLAIM_ISSUER, "blah"));
+        () -> RawJwt.newBuilder().addStringClaim("iss", "blah"));
   }
 
   @Test
   public void addStringClaim_subject_shouldThrow() throws Exception {
     assertThrows(
         IllegalArgumentException.class,
-        () -> RawJwt.newBuilder().addStringClaim(JwtNames.CLAIM_SUBJECT, "blah"));
+        () -> RawJwt.newBuilder().addStringClaim("sub", "blah"));
   }
 
   @Test
   public void addEncodedJsonArrayClaim_audience_shouldThrow() throws Exception {
     assertThrows(
         IllegalArgumentException.class,
-        () -> RawJwt.newBuilder().addJsonArrayClaim(JwtNames.CLAIM_AUDIENCE, "[\"a\", \"b\"]"));
+        () -> RawJwt.newBuilder().addJsonArrayClaim("aud", "[\"a\", \"b\"]"));
   }
 
   @Test
   public void addStringClaim_jwtId_shouldThrow() throws Exception {
     assertThrows(
         IllegalArgumentException.class,
-        () -> RawJwt.newBuilder().addStringClaim(JwtNames.CLAIM_JWT_ID, "blah"));
+        () -> RawJwt.newBuilder().addStringClaim("jti", "blah"));
   }
 
   @Test
   public void addNumberClaim_expiration_shouldThrow() throws Exception {
     assertThrows(
         IllegalArgumentException.class,
-        () -> RawJwt.newBuilder().addNumberClaim(JwtNames.CLAIM_EXPIRATION, 1234567));
+        () -> RawJwt.newBuilder().addNumberClaim("exp", 1234567));
   }
 
   @Test
   public void addNumberClaim_issuedAt_shouldThrow() throws Exception {
     assertThrows(
         IllegalArgumentException.class,
-        () -> RawJwt.newBuilder().addNumberClaim(JwtNames.CLAIM_ISSUED_AT, 1234567));
+        () -> RawJwt.newBuilder().addNumberClaim("iat", 1234567));
   }
 
   @Test
   public void addNumberClaim_notBefore_shouldThrow() throws Exception {
     assertThrows(
         IllegalArgumentException.class,
-        () -> RawJwt.newBuilder().addNumberClaim(JwtNames.CLAIM_NOT_BEFORE, 1234567));
+        () -> RawJwt.newBuilder().addNumberClaim("nbf", 1234567));
   }
 
   @Test
@@ -403,9 +461,35 @@ public final class RawJwtTest {
   }
 
   @Test
+  public void integerIsEncodedAsInteger() throws Exception {
+    RawJwt token = RawJwt.newBuilder().addNumberClaim("num", 1).withoutExpiration().build();
+    assertThat(token.getJsonPayload()).isEqualTo("{\"num\":1}");
+  }
+
+  @Test
   public void getJsonPayload_success() throws Exception {
-    RawJwt token = RawJwt.newBuilder().setJwtId("blah").withoutExpiration().build();
-    assertThat(token.getJsonPayload()).isEqualTo("{\"jti\":\"blah\"}");
+    RawJwt token = RawJwt.newBuilder().setJwtId("id").withoutExpiration().build();
+    assertThat(token.getJsonPayload()).isEqualTo("{\"jti\":\"id\"}");
+  }
+
+  @Test
+  public void addOneAudienceAndGetJsonPayload_audAsList() throws Exception {
+    RawJwt token = RawJwt.newBuilder().addAudience("a").withoutExpiration().build();
+    assertThat(token.getJsonPayload()).isEqualTo("{\"aud\":[\"a\"]}");
+  }
+
+  @Test
+  public void setAudienceAndGetJsonPayload_audAsString() throws Exception {
+    RawJwt token = RawJwt.newBuilder().setAudience("a").withoutExpiration().build();
+    assertThat(token.getJsonPayload()).isEqualTo("{\"aud\":\"a\"}");
+  }
+
+  @Test
+  public void setAudiencesWithOneEntryAndGetJsonPayload_audAsList() throws Exception {
+    List<String> audiences = new ArrayList<>();
+    audiences.add("a");
+    RawJwt token = RawJwt.newBuilder().setAudiences(audiences).withoutExpiration().build();
+    assertThat(token.getJsonPayload()).isEqualTo("{\"aud\":[\"a\"]}");
   }
 
   @Test
@@ -522,7 +606,7 @@ public final class RawJwtTest {
   }
 
   @Test
-  public void fromJsonPayloadWithValidJsonEscapedCharacter_shouldThrow() throws Exception {
+  public void fromJsonPayloadWithValidJsonEscapedCharacter_success() throws Exception {
     RawJwt token = RawJwt.fromJsonPayload(Optional.empty(), "{\"iss\":\"\\uD834\\uDD1E\"}");
     assertThat(token.hasIssuer()).isTrue();
     assertThat(token.getIssuer()).isEqualTo("\uD834\uDD1E");
@@ -538,9 +622,16 @@ public final class RawJwtTest {
   }
 
   @Test
-  public void fromJsonPayloadWithAudienceAsString_convertedToArray() throws Exception {
-    // According to https://tools.ietf.org/html/rfc7519#section-4.1.3, this should be accepted.
+  public void fromJsonPayloadWithAudienceAsString_preserveString() throws Exception {
     String input = "{\"aud\": \"me\"}";
+    RawJwt token = RawJwt.fromJsonPayload(Optional.empty(), input);
+    assertThat(token.getAudiences()).containsExactly("me");
+    assertThat(token.getJsonPayload()).isEqualTo("{\"aud\":\"me\"}");
+  }
+
+  @Test
+  public void fromJsonPayloadWithSingleAudienceAsList_preserveList() throws Exception {
+    String input = "{\"aud\": [\"me\"]}";
     RawJwt token = RawJwt.fromJsonPayload(Optional.empty(), input);
     assertThat(token.getAudiences()).containsExactly("me");
     assertThat(token.getJsonPayload()).isEqualTo("{\"aud\":[\"me\"]}");
@@ -556,10 +647,17 @@ public final class RawJwtTest {
   }
 
   @Test
-  public void fromJsonPayloadWithComments_shouldThrow () throws Exception {
+  public void fromJsonPayloadWithComments_shouldThrow() throws Exception {
     String input = "{\"sub\": \"subject\" /*, \"iss\": \"issuer\" */}";
     assertThrows(JwtInvalidException.class, () -> RawJwt.fromJsonPayload(Optional.empty(), input));
   }
+
+  @Test
+  public void fromJsonPayloadWithTwoIdenticalClaimNames_shouldThrow() throws Exception {
+    String input = "{\"claim\": \"claim1\", \"claim\": \"claim2\"}";
+    assertThrows(JwtInvalidException.class, () -> RawJwt.fromJsonPayload(Optional.empty(), input));
+  }
+
 
   @Test
   public void fromJsonPayloadWithEscapedChars_success() throws Exception {
@@ -574,6 +672,34 @@ public final class RawJwtTest {
     assertThrows(JwtInvalidException.class, () -> RawJwt.fromJsonPayload(Optional.empty(), input));
   }
 
+  @Test
+  public void fromJsonPayload_withLargeNumberClaim() throws Exception {
+    String input =
+        "{\"numClaim\":   "
+            + "9999999999999999999999999999999999999999999900000000000000000000000}";
+    RawJwt token = RawJwt.fromJsonPayload(Optional.empty(), input);
+    assertThat(token.getNumberClaim("numClaim"))
+        .isWithin(0.0002e66)
+        .of(9.9999e66);
+  }
+
+  @Test
+  public void fromJsonPayload_withLargerThanDoubleMaxValueNumberClaim_isLarge() throws Exception {
+    String input =
+        "{\"numClaim\":   "
+            + "99999999999999999999999999.99e+99999999999999999999999999}";
+    RawJwt token = RawJwt.fromJsonPayload(Optional.empty(), input);
+    assertThat(token.getNumberClaim("numClaim")).isAtLeast(Double.MAX_VALUE);
+  }
+
+  @Test
+  public void fromJsonPayload_withSmallerThanDoubleMinValueNumberClaim_isSmall() throws Exception {
+    String input =
+        "{\"numClaim\":   "
+            + "-99999999999999999999999999.99e+99999999999999999999999999}";
+    RawJwt token = RawJwt.fromJsonPayload(Optional.empty(), input);
+    assertThat(token.getNumberClaim("numClaim")).isAtMost(Double.MIN_VALUE);
+  }
 
   @Test
   public void getClaimsOfDifferentType_shouldThrow() throws Exception {
@@ -632,5 +758,23 @@ public final class RawJwtTest {
 
     assertThat(fooToken.getSubject()).isEqualTo("foo");
     assertThat(barToken.getSubject()).isEqualTo("bar");
+  }
+
+  @Test
+  public void toString_success() throws Exception {
+    RawJwt token1 =
+        RawJwt.newBuilder()
+            .setIssuer("issuer")
+            .setExpiration(Instant.ofEpochSecond(1234567))
+            .addNullClaim("nothing")
+            .build();
+    assertThat(token1.toString())
+        .isEqualTo("{}.{\"iss\":\"issuer\",\"exp\":1234567,\"nothing\":null}");
+    RawJwt token2 =
+        RawJwt.newBuilder()
+            .setTypeHeader("\"type\"")
+            .setExpiration(Instant.ofEpochSecond(42))
+            .build();
+    assertThat(token2.toString()).isEqualTo("{\"typ\":\"\\\"type\\\"\"}.{\"exp\":42}");
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package com.google.crypto.tink;
 
+import com.google.crypto.tink.internal.PrimitiveSet;
 import java.security.GeneralSecurityException;
 
 /**
@@ -35,8 +36,10 @@ public interface PrimitiveWrapper<B, P> {
   /**
    * Wraps a {@code PrimitiveSet} and returns a single instance.
    *
+   * <p> This method gets called when a new primitive is created. {@code primitiveSet} is immutable.
+   *
    * This has to be implemented when a new primitive type is added. */
-  P wrap(PrimitiveSet<B> set) throws GeneralSecurityException;
+  P wrap(PrimitiveSet<B> primitiveSet) throws GeneralSecurityException;
 
   /**
    * Returns the primitive class object of the primitive managed. Used for internal management.

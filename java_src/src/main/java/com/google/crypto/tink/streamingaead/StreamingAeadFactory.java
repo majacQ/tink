@@ -17,7 +17,6 @@
 package com.google.crypto.tink.streamingaead;
 
 import com.google.crypto.tink.KeysetHandle;
-import com.google.crypto.tink.Registry;
 import com.google.crypto.tink.StreamingAead;
 import java.security.GeneralSecurityException;
 
@@ -40,11 +39,12 @@ import java.security.GeneralSecurityException;
 public final class StreamingAeadFactory {
   /**
    * @return a StreamingAead primitive from a {@code keysetHandle}.
-   * @throws GeneralSecurityException
    */
   public static StreamingAead getPrimitive(KeysetHandle keysetHandle)
       throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new StreamingAeadWrapper());
+    StreamingAeadWrapper.register();
     return keysetHandle.getPrimitive(StreamingAead.class);
   }
+
+  private StreamingAeadFactory() {}
 }

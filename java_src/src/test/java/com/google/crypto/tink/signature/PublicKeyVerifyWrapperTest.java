@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,23 +16,21 @@
 
 package com.google.crypto.tink.signature;
 
+import static com.google.common.truth.Truth.assertThat;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.fail;
 
-import com.google.crypto.tink.PrimitiveSet;
+import com.google.crypto.tink.KeysetHandle;
 import com.google.crypto.tink.PublicKeySign;
 import com.google.crypto.tink.PublicKeyVerify;
-import com.google.crypto.tink.proto.EcdsaPrivateKey;
-import com.google.crypto.tink.proto.EcdsaSignatureEncoding;
-import com.google.crypto.tink.proto.EllipticCurveType;
-import com.google.crypto.tink.proto.HashType;
-import com.google.crypto.tink.proto.KeyData;
-import com.google.crypto.tink.proto.KeyStatusType;
-import com.google.crypto.tink.proto.Keyset.Key;
-import com.google.crypto.tink.proto.OutputPrefixType;
-import com.google.crypto.tink.subtle.Random;
-import com.google.crypto.tink.testing.TestUtil;
+import com.google.crypto.tink.internal.MutableMonitoringRegistry;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveRegistry;
+import com.google.crypto.tink.internal.testing.FakeMonitoringClient;
+import com.google.crypto.tink.monitoring.MonitoringAnnotations;
+import com.google.crypto.tink.subtle.EcdsaSignJce;
 import java.security.GeneralSecurityException;
+import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -40,122 +38,428 @@ import org.junit.runners.JUnit4;
 
 /** Unit tests for {@link PublicKeyVerifyWrapper}. */
 @RunWith(JUnit4.class)
-// TODO(quannguyen): Add more tests.
 public class PublicKeyVerifyWrapperTest {
-
   @Before
   public void setUp() throws Exception {
+    MutablePrimitiveRegistry.resetGlobalInstanceTestOnly();
     SignatureConfig.register();
   }
 
   @Test
-  public void testMultipleKeys() throws Exception {
-    EcdsaPrivateKey tinkPrivateKey =
-        TestUtil.generateEcdsaPrivKey(
-            EllipticCurveType.NIST_P521, HashType.SHA512, EcdsaSignatureEncoding.DER);
-    Key tink =
-        TestUtil.createKey(
-            TestUtil.createKeyData(
-                tinkPrivateKey.getPublicKey(),
-                new EcdsaVerifyKeyManager().getKeyType(),
-                KeyData.KeyMaterialType.ASYMMETRIC_PUBLIC),
-            1,
-            KeyStatusType.ENABLED,
-            OutputPrefixType.TINK);
+  public void verifyNoPrefix_works() throws Exception {
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.NO_PREFIX)
+            .build();
+    KeysetHandle handle = KeysetHandle.generateNew(parameters);
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) handle.getAt(0).getKey());
+    PublicKeyVerify verifier = handle.getPublicKeysetHandle().getPrimitive(PublicKeyVerify.class);
 
-    EcdsaPrivateKey legacyPrivateKey =
-        TestUtil.generateEcdsaPrivKey(
-            EllipticCurveType.NIST_P256, HashType.SHA256, EcdsaSignatureEncoding.DER);
-    Key legacy =
-        TestUtil.createKey(
-            TestUtil.createKeyData(
-                legacyPrivateKey.getPublicKey(),
-                new EcdsaVerifyKeyManager().getKeyType(),
-                KeyData.KeyMaterialType.ASYMMETRIC_PUBLIC),
-            2,
-            KeyStatusType.ENABLED,
-            OutputPrefixType.LEGACY);
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] sig = signer.sign(data);
 
-    EcdsaPrivateKey rawPrivateKey =
-        TestUtil.generateEcdsaPrivKey(
-            EllipticCurveType.NIST_P384, HashType.SHA512, EcdsaSignatureEncoding.DER);
-    Key raw =
-        TestUtil.createKey(
-            TestUtil.createKeyData(
-                rawPrivateKey.getPublicKey(),
-                new EcdsaVerifyKeyManager().getKeyType(),
-                KeyData.KeyMaterialType.ASYMMETRIC_PUBLIC),
-            3,
-            KeyStatusType.ENABLED,
-            OutputPrefixType.RAW);
+    verifier.verify(sig, data);
+  }
 
-    EcdsaPrivateKey crunchyPrivateKey =
-        TestUtil.generateEcdsaPrivKey(
-            EllipticCurveType.NIST_P384, HashType.SHA512, EcdsaSignatureEncoding.DER);
-    Key crunchy =
-        TestUtil.createKey(
-            TestUtil.createKeyData(
-                crunchyPrivateKey.getPublicKey(),
-                new EcdsaVerifyKeyManager().getKeyType(),
-                KeyData.KeyMaterialType.ASYMMETRIC_PUBLIC),
-            4,
-            KeyStatusType.ENABLED,
-            OutputPrefixType.CRUNCHY);
+  /** We test all variants for legacy reasons. */
+  @Test
+  public void verifyTink_works() throws Exception {
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.TINK)
+            .build();
 
-    Key[] keys = new Key[] {tink, legacy, raw, crunchy};
-    EcdsaPrivateKey[] privateKeys =
-        new EcdsaPrivateKey[] {tinkPrivateKey, legacyPrivateKey, rawPrivateKey, crunchyPrivateKey};
+    KeysetHandle handle = KeysetHandle.generateNew(parameters);
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) handle.getAt(0).getKey());
+    PublicKeyVerify verifier = handle.getPublicKeysetHandle().getPrimitive(PublicKeyVerify.class);
 
-    int j = keys.length;
-    for (int i = 0; i < j; i++) {
-      PrimitiveSet<PublicKeyVerify> primitives =
-          TestUtil.createPrimitiveSet(
-              TestUtil.createKeyset(
-                  keys[i], keys[(i + 1) % j], keys[(i + 2) % j], keys[(i + 3) % j]),
-              PublicKeyVerify.class);
-      PublicKeyVerify verifier = new PublicKeyVerifyWrapper().wrap(primitives);
-      // Signature from any keys in the keyset should be valid.
-      for (int k = 0; k < j; k++) {
-        PublicKeySign signer =
-            PublicKeySignFactory.getPrimitive(
-                TestUtil.createKeysetHandle(
-                    TestUtil.createKeyset(
-                        TestUtil.createKey(
-                            TestUtil.createKeyData(
-                                privateKeys[k],
-                                new EcdsaSignKeyManager().getKeyType(),
-                                KeyData.KeyMaterialType.ASYMMETRIC_PRIVATE),
-                            keys[k].getKeyId(),
-                            KeyStatusType.ENABLED,
-                            keys[k].getOutputPrefixType()))));
-        byte[] plaintext = Random.randBytes(1211);
-        byte[] sig = signer.sign(plaintext);
-        try {
-          verifier.verify(sig, plaintext);
-        } catch (GeneralSecurityException ex) {
-          fail("Valid signature, should not throw exception: " + k);
-        }
-      }
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] sig = signer.sign(data);
 
-      // Signature from a random key should be invalid.
-      EcdsaPrivateKey randomPrivKey =
-          TestUtil.generateEcdsaPrivKey(
-              EllipticCurveType.NIST_P521, HashType.SHA512, EcdsaSignatureEncoding.DER);
-      PublicKeySign signer =
-          PublicKeySignFactory.getPrimitive(
-              TestUtil.createKeysetHandle(
-                  TestUtil.createKeyset(
-                      TestUtil.createKey(
-                          TestUtil.createKeyData(
-                              randomPrivKey,
-                              new EcdsaSignKeyManager().getKeyType(),
-                              KeyData.KeyMaterialType.ASYMMETRIC_PRIVATE),
-                          1,
-                          KeyStatusType.ENABLED,
-                          keys[0].getOutputPrefixType()))));
-      byte[] plaintext = Random.randBytes(1211);
-      byte[] sig = signer.sign(plaintext);
-      assertThrows(GeneralSecurityException.class, () -> verifier.verify(sig, plaintext));
-    }
+    verifier.verify(sig, data);
+  }
+
+  @Test
+  public void verifyCrunchy_works() throws Exception {
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.CRUNCHY)
+            .build();
+
+    KeysetHandle handle = KeysetHandle.generateNew(parameters);
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) handle.getAt(0).getKey());
+    PublicKeyVerify verifier = handle.getPublicKeysetHandle().getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] sig = signer.sign(data);
+
+    verifier.verify(sig, data);
+  }
+
+  @Test
+  public void verifyLegacy_works() throws Exception {
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.LEGACY)
+            .build();
+
+    KeysetHandle handle = KeysetHandle.generateNew(parameters);
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) handle.getAt(0).getKey());
+    PublicKeyVerify verifier = handle.getPublicKeysetHandle().getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] sig = signer.sign(data);
+
+    verifier.verify(sig, data);
+  }
+
+  @Test
+  public void verifyTriesAllKeys_works() throws Exception {
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.NO_PREFIX)
+            .build();
+    KeysetHandle handle =
+        KeysetHandle.newBuilder()
+            .addEntry(KeysetHandle.generateEntryFromParameters(parameters).withRandomId())
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parameters).withRandomId().makePrimary())
+            .addEntry(KeysetHandle.generateEntryFromParameters(parameters).withRandomId())
+            .build();
+    PublicKeySign signer0 = EcdsaSignJce.create((EcdsaPrivateKey) handle.getAt(0).getKey());
+    PublicKeySign signer1 = EcdsaSignJce.create((EcdsaPrivateKey) handle.getAt(1).getKey());
+    PublicKeySign signer2 = EcdsaSignJce.create((EcdsaPrivateKey) handle.getAt(2).getKey());
+    PublicKeyVerify verifier = handle.getPublicKeysetHandle().getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    verifier.verify(signer0.sign(data), data);
+    verifier.verify(signer1.sign(data), data);
+    verifier.verify(signer2.sign(data), data);
+  }
+
+  @Test
+  public void verifyRequiresCorrectKey_fails() throws Exception {
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.NO_PREFIX)
+            .build();
+    KeysetHandle handle1 =
+        KeysetHandle.newBuilder()
+            .addEntry(KeysetHandle.generateEntryFromParameters(parameters).withRandomId())
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parameters).withRandomId().makePrimary())
+            .addEntry(KeysetHandle.generateEntryFromParameters(parameters).withRandomId())
+            .build();
+    KeysetHandle handle2 =
+        KeysetHandle.newBuilder()
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parameters).withRandomId().makePrimary())
+            .build();
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) handle2.getAt(0).getKey());
+    PublicKeyVerify verifier = handle1.getPublicKeysetHandle().getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] sig = signer.sign(data);
+    assertThrows(GeneralSecurityException.class, () -> verifier.verify(sig, data));
+  }
+
+  @Test
+  public void monitorsWithAnnotations() throws Exception {
+    FakeMonitoringClient fakeMonitoringClient = new FakeMonitoringClient();
+    MutableMonitoringRegistry.globalInstance().clear();
+    MutableMonitoringRegistry.globalInstance().registerMonitoringClient(fakeMonitoringClient);
+    PublicKeySignWrapper.register();
+
+    MonitoringAnnotations annotations =
+        MonitoringAnnotations.newBuilder().add("annotation_name", "annotation_value").build();
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.TINK)
+            .build();
+
+    KeysetHandle privateHandle =
+        KeysetHandle.newBuilder()
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parameters).withFixedId(123).makePrimary())
+            .build();
+    KeysetHandle publicHandle =
+        KeysetHandle.newBuilder(privateHandle.getPublicKeysetHandle())
+            .setMonitoringAnnotations(annotations)
+            .build();
+
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) privateHandle.getAt(0).getKey());
+    PublicKeyVerify verifier = publicHandle.getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] sig = signer.sign(data);
+    verifier.verify(sig, data);
+
+    List<FakeMonitoringClient.LogEntry> logEntries = fakeMonitoringClient.getLogEntries();
+    assertThat(logEntries).hasSize(1);
+    FakeMonitoringClient.LogEntry verifyEntry = logEntries.get(0);
+    assertThat(verifyEntry.getKeyId()).isEqualTo(123);
+    assertThat(verifyEntry.getPrimitive()).isEqualTo("public_key_verify");
+    assertThat(verifyEntry.getApi()).isEqualTo("verify");
+    assertThat(verifyEntry.getNumBytesAsInput()).isEqualTo(data.length);
+    assertThat(verifyEntry.getKeysetInfo().getAnnotations()).isEqualTo(annotations);
+
+    List<FakeMonitoringClient.LogFailureEntry> failures =
+        fakeMonitoringClient.getLogFailureEntries();
+    assertThat(failures).hasSize(0);
+  }
+
+  @Test
+  public void monitorsWithAnnotations_failure_shortSignature() throws Exception {
+    FakeMonitoringClient fakeMonitoringClient = new FakeMonitoringClient();
+    MutableMonitoringRegistry.globalInstance().clear();
+    MutableMonitoringRegistry.globalInstance().registerMonitoringClient(fakeMonitoringClient);
+    PublicKeySignWrapper.register();
+
+    MonitoringAnnotations annotations =
+        MonitoringAnnotations.newBuilder().add("annotation_name", "annotation_value").build();
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.NO_PREFIX)
+            .build();
+
+    KeysetHandle privateHandle =
+        KeysetHandle.newBuilder()
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parameters).withFixedId(123).makePrimary())
+            .build();
+    KeysetHandle publicHandle =
+        KeysetHandle.newBuilder(privateHandle.getPublicKeysetHandle())
+            .setMonitoringAnnotations(annotations)
+            .build();
+
+    PublicKeyVerify verifier = publicHandle.getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    assertThrows(GeneralSecurityException.class, () -> verifier.verify(new byte[] {1, 2, 3}, data));
+
+    List<FakeMonitoringClient.LogFailureEntry> failures =
+        fakeMonitoringClient.getLogFailureEntries();
+    assertThat(failures).hasSize(1);
+    FakeMonitoringClient.LogFailureEntry verifyFailure = failures.get(0);
+    assertThat(verifyFailure.getPrimitive()).isEqualTo("public_key_verify");
+    assertThat(verifyFailure.getApi()).isEqualTo("verify");
+    assertThat(verifyFailure.getKeysetInfo().getAnnotations()).isEqualTo(annotations);
+  }
+
+  @Test
+  public void monitorsWithAnnotations_failure_longSignature() throws Exception {
+    FakeMonitoringClient fakeMonitoringClient = new FakeMonitoringClient();
+    MutableMonitoringRegistry.globalInstance().clear();
+    MutableMonitoringRegistry.globalInstance().registerMonitoringClient(fakeMonitoringClient);
+    PublicKeySignWrapper.register();
+
+    MonitoringAnnotations annotations =
+        MonitoringAnnotations.newBuilder().add("annotation_name", "annotation_value").build();
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.NO_PREFIX)
+            .build();
+
+    KeysetHandle privateHandle =
+        KeysetHandle.newBuilder()
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parameters).withFixedId(123).makePrimary())
+            .build();
+    KeysetHandle publicHandle =
+        KeysetHandle.newBuilder(privateHandle.getPublicKeysetHandle())
+            .setMonitoringAnnotations(annotations)
+            .build();
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) privateHandle.getAt(0).getKey());
+    PublicKeyVerify verifier = publicHandle.getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] wrongSig = signer.sign(new byte[0]);
+    assertThrows(GeneralSecurityException.class, () -> verifier.verify(wrongSig, data));
+
+    List<FakeMonitoringClient.LogFailureEntry> failures =
+        fakeMonitoringClient.getLogFailureEntries();
+    assertThat(failures).hasSize(1);
+    FakeMonitoringClient.LogFailureEntry verifyFailure = failures.get(0);
+    assertThat(verifyFailure.getPrimitive()).isEqualTo("public_key_verify");
+    assertThat(verifyFailure.getApi()).isEqualTo("verify");
+    assertThat(verifyFailure.getKeysetInfo().getAnnotations()).isEqualTo(annotations);
+  }
+
+  @Test
+  public void monitors_associatesWithCorrectKey_works() throws Exception {
+    FakeMonitoringClient fakeMonitoringClient = new FakeMonitoringClient();
+    MutableMonitoringRegistry.globalInstance().clear();
+    MutableMonitoringRegistry.globalInstance().registerMonitoringClient(fakeMonitoringClient);
+    PublicKeySignWrapper.register();
+
+    MonitoringAnnotations annotations =
+        MonitoringAnnotations.newBuilder().add("annotation_name", "annotation_value").build();
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.TINK)
+            .build();
+    EcdsaParameters parametersNoPrefix =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.NO_PREFIX)
+            .build();
+
+    KeysetHandle privateHandle =
+        KeysetHandle.newBuilder()
+            .addEntry(KeysetHandle.generateEntryFromParameters(parameters).withFixedId(20))
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parametersNoPrefix)
+                    .withFixedId(30)
+                    .makePrimary())
+            .addEntry(KeysetHandle.generateEntryFromParameters(parametersNoPrefix).withFixedId(40))
+            .build();
+    KeysetHandle publicHandle =
+        KeysetHandle.newBuilder(privateHandle.getPublicKeysetHandle())
+            .setMonitoringAnnotations(annotations)
+            .build();
+
+    PublicKeySign signer20 = EcdsaSignJce.create((EcdsaPrivateKey) privateHandle.getAt(0).getKey());
+    PublicKeySign signer30 = EcdsaSignJce.create((EcdsaPrivateKey) privateHandle.getAt(1).getKey());
+    PublicKeySign signer40 = EcdsaSignJce.create((EcdsaPrivateKey) privateHandle.getAt(2).getKey());
+    PublicKeyVerify verifier = publicHandle.getPrimitive(PublicKeyVerify.class);
+
+    // Verify once with data of length 2 for key with id 20.
+    byte[] data = "da".getBytes(UTF_8);
+    byte[] sig = signer20.sign(data);
+    verifier.verify(sig, data);
+
+    // Verify once with data of length 3 for key with id 30.
+    data = "dat".getBytes(UTF_8);
+    sig = signer30.sign(data);
+    verifier.verify(sig, data);
+
+    // Verify once with data of length 4 for key with id 40.
+    data = "data".getBytes(UTF_8);
+    sig = signer40.sign(data);
+    verifier.verify(sig, data);
+
+    List<FakeMonitoringClient.LogEntry> logEntries = fakeMonitoringClient.getLogEntries();
+    assertThat(logEntries).hasSize(3);
+    FakeMonitoringClient.LogEntry verify0Entry = logEntries.get(0);
+    assertThat(verify0Entry.getKeyId()).isEqualTo(20);
+    assertThat(verify0Entry.getPrimitive()).isEqualTo("public_key_verify");
+    assertThat(verify0Entry.getApi()).isEqualTo("verify");
+    assertThat(verify0Entry.getNumBytesAsInput()).isEqualTo(2);
+    assertThat(verify0Entry.getKeysetInfo().getAnnotations()).isEqualTo(annotations);
+
+    FakeMonitoringClient.LogEntry verify1Entry = logEntries.get(1);
+    assertThat(verify1Entry.getKeyId()).isEqualTo(30);
+    assertThat(verify1Entry.getPrimitive()).isEqualTo("public_key_verify");
+    assertThat(verify1Entry.getApi()).isEqualTo("verify");
+    assertThat(verify1Entry.getNumBytesAsInput()).isEqualTo(3);
+    assertThat(verify1Entry.getKeysetInfo().getAnnotations()).isEqualTo(annotations);
+
+    FakeMonitoringClient.LogEntry verify2Entry = logEntries.get(2);
+    assertThat(verify2Entry.getKeyId()).isEqualTo(40);
+    assertThat(verify2Entry.getPrimitive()).isEqualTo("public_key_verify");
+    assertThat(verify2Entry.getApi()).isEqualTo("verify");
+    assertThat(verify2Entry.getNumBytesAsInput()).isEqualTo(4);
+    assertThat(verify2Entry.getKeysetInfo().getAnnotations()).isEqualTo(annotations);
+
+    List<FakeMonitoringClient.LogFailureEntry> failures =
+        fakeMonitoringClient.getLogFailureEntries();
+    assertThat(failures).hasSize(0);
+  }
+
+  @Test
+  public void monitorsWithAnnotations_legacySameLength() throws Exception {
+    FakeMonitoringClient fakeMonitoringClient = new FakeMonitoringClient();
+    MutableMonitoringRegistry.globalInstance().clear();
+    MutableMonitoringRegistry.globalInstance().registerMonitoringClient(fakeMonitoringClient);
+    PublicKeySignWrapper.register();
+
+    MonitoringAnnotations annotations =
+        MonitoringAnnotations.newBuilder().add("annotation_name", "annotation_value").build();
+    EcdsaParameters parameters =
+        EcdsaParameters.builder()
+            .setSignatureEncoding(EcdsaParameters.SignatureEncoding.IEEE_P1363)
+            .setCurveType(EcdsaParameters.CurveType.NIST_P256)
+            .setHashType(EcdsaParameters.HashType.SHA256)
+            .setVariant(EcdsaParameters.Variant.LEGACY)
+            .build();
+
+    KeysetHandle privateHandle =
+        KeysetHandle.newBuilder()
+            .addEntry(
+                KeysetHandle.generateEntryFromParameters(parameters).withFixedId(123).makePrimary())
+            .build();
+    KeysetHandle publicHandle =
+        KeysetHandle.newBuilder(privateHandle.getPublicKeysetHandle())
+            .setMonitoringAnnotations(annotations)
+            .build();
+
+    PublicKeySign signer = EcdsaSignJce.create((EcdsaPrivateKey) privateHandle.getAt(0).getKey());
+    PublicKeyVerify verifier = publicHandle.getPrimitive(PublicKeyVerify.class);
+
+    byte[] data = "data".getBytes(UTF_8);
+    byte[] sig = signer.sign(data);
+    verifier.verify(sig, data);
+
+    List<FakeMonitoringClient.LogEntry> logEntries = fakeMonitoringClient.getLogEntries();
+    assertThat(logEntries).hasSize(1);
+    FakeMonitoringClient.LogEntry verifyEntry = logEntries.get(0);
+    assertThat(verifyEntry.getKeyId()).isEqualTo(123);
+    assertThat(verifyEntry.getPrimitive()).isEqualTo("public_key_verify");
+    assertThat(verifyEntry.getApi()).isEqualTo("verify");
+    // For keys of type legacy we report 1 more.
+    assertThat(verifyEntry.getNumBytesAsInput()).isEqualTo(data.length);
+    assertThat(verifyEntry.getKeysetInfo().getAnnotations()).isEqualTo(annotations);
+
+    List<FakeMonitoringClient.LogFailureEntry> failures =
+        fakeMonitoringClient.getLogFailureEntries();
+    assertThat(failures).hasSize(0);
+  }
+
+  @Test
+  public void registerToInternalPrimitiveRegistry_works() throws Exception {
+    PrimitiveRegistry.Builder initialBuilder = PrimitiveRegistry.builder();
+    PrimitiveRegistry initialRegistry = initialBuilder.build();
+    PrimitiveRegistry.Builder processedBuilder = PrimitiveRegistry.builder(initialRegistry);
+
+    PublicKeyVerifyWrapper.registerToInternalPrimitiveRegistry(processedBuilder);
+    PrimitiveRegistry processedRegistry = processedBuilder.build();
+
+    assertThrows(
+        GeneralSecurityException.class,
+        () -> initialRegistry.getInputPrimitiveClass(PublicKeyVerify.class));
+    assertThat(processedRegistry.getInputPrimitiveClass(PublicKeyVerify.class))
+        .isEqualTo(PublicKeyVerify.class);
   }
 }

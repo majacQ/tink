@@ -14,24 +14,15 @@
 # limitations under the License.
 ################################################################################
 
-
 set -euo pipefail
-cd ${KOKORO_ARTIFACTS_DIR}/git/tink
 
-./kokoro/copy_credentials.sh
+if [[ -n "${KOKORO_ROOT:-}" ]]; then
+  cd "${KOKORO_ARTIFACTS_DIR}/git/tink"
+fi
 
-echo "========================================================= Running cmake"
-cmake --version
-cmake . cmake . -DTINK_BUILD_TESTS=ON -DCMAKE_CXX_STANDARD=11
-echo "==================================================== Building with make"
-make -j8 all
-echo "===================================================== Testing with make"
-CTEST_OUTPUT_ON_FAILURE=1 make test
-echo "================================================ Done testing with make"
-
-(
-  export TEST_TMPDIR="$(mktemp -d)"
-  export TEST_SRCDIR="$(cd ..; pwd)"
-  cd examples/cc/helloworld
-  ./cmake_build_test.sh
-)
+./kokoro/testutils/upgrade_gcc.sh
+# Sourcing is needed to update the caller environment.
+# Install CMake 3.13 which is the minimum required.
+source ./kokoro/testutils/install_cmake.sh "3.13.5" \
+  "e2fd0080a6f0fc1ec84647acdcd8e0b4019770f48d83509e6a5b0b6ea27e5864"
+./kokoro/testutils/run_cmake_tests.sh .

@@ -16,6 +16,7 @@
 
 package com.google.crypto.tink;
 
+import com.google.crypto.tink.internal.MutableParametersRegistry;
 import java.security.GeneralSecurityException;
 
 /**
@@ -33,10 +34,8 @@ public final class KeyTemplates {
    * @since 1.6.0
    */
   public static KeyTemplate get(String name) throws GeneralSecurityException {
-    if (!Registry.keyTemplateMap().containsKey(name)) {
-      throw new GeneralSecurityException("cannot find key template: " + name);
-    }
-    return Registry.keyTemplateMap().get(name);
+    Parameters result = MutableParametersRegistry.globalInstance().get(name);
+    return KeyTemplate.createFrom(result);
   }
 
   private KeyTemplates() {}

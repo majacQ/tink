@@ -16,6 +16,7 @@
 
 package com.google.crypto.tink.subtle;
 
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -104,7 +105,7 @@ class StreamingAeadSeekableDecryptingChannel implements SeekableByteChannel {
   /**
    * A description of the state of this StreamingAeadSeekableDecryptingChannel.
    * While this description does not contain plaintext or key material
-   * it contains length information that might be confidential.
+   * it contains length information that might leak some information.
    */
   @Override
   public synchronized String toString() {
@@ -148,10 +149,10 @@ class StreamingAeadSeekableDecryptingChannel implements SeekableByteChannel {
   }
 
   /**
-   * Sets the position in the plaintext.
-   * Setting the position to a value greater than the plaintext size is legal.
-   * A later attempt to read byte will throw an IOException.
+   * Sets the position in the plaintext. Setting the position to a value greater than the plaintext
+   * size is legal. A later attempt to read byte will throw an IOException.
    */
+  @CanIgnoreReturnValue
   @Override
   public synchronized SeekableByteChannel position(long newPosition) {
     plaintextPosition = newPosition;
@@ -159,13 +160,13 @@ class StreamingAeadSeekableDecryptingChannel implements SeekableByteChannel {
   }
 
   /**
-   * Tries to read the header of the ciphertext and derive the key used for the
-   * ciphertext from the information in the header.
+   * Tries to read the header of the ciphertext and derive the key used for the ciphertext from the
+   * information in the header.
    *
-   * @return true if the header was fully read and has a correct format.
-   *               Returns false if the header could not be read.
-   * @throws IOException if the header was incorrectly formatted or if there
-   *         was an exception during the key derivation.
+   * @return true if the header was fully read and has a correct format. Returns false if the header
+   *     could not be read.
+   * @throws IOException if the header was incorrectly formatted or if there was an exception during
+   *     the key derivation.
    */
   private boolean tryReadHeader() throws IOException {
     ciphertextChannel.position(header.position() + firstSegmentOffset);

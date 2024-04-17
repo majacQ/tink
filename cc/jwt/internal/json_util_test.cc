@@ -18,10 +18,11 @@
 
 #include <string>
 
+#include "google/protobuf/struct.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "tink/util/statusor.h"
 #include "tink/util/test_matchers.h"
-#include "tink/util/test_util.h"
 
 using ::crypto::tink::test::IsOk;
 using ::crypto::tink::test::IsOkAndHolds;
@@ -35,7 +36,7 @@ namespace jwt_internal {
 TEST(JsonUtil, ParseThenSerializeStructWtihStringListOk) {
   util::StatusOr<Struct> proto =
       JsonStringToProtoStruct(R"({"some_key":["hello","world","!"]})");
-  ASSERT_THAT(proto.status(), IsOk());
+  ASSERT_THAT(proto, IsOk());
 
   ASSERT_THAT(ProtoStructToJsonString(*proto),
               IsOkAndHolds(R"({"some_key":["hello","world","!"]})"));
@@ -44,7 +45,7 @@ TEST(JsonUtil, ParseThenSerializeStructWtihStringListOk) {
 TEST(JsonUtil, ParseThenSerializeStructWtihNumberOk) {
   util::StatusOr<Struct> proto =
       JsonStringToProtoStruct(R"({"some_key":-12345})");
-  ASSERT_THAT(proto.status(), IsOk());
+  ASSERT_THAT(proto, IsOk());
 
   ASSERT_THAT(ProtoStructToJsonString(*proto),
               IsOkAndHolds(R"({"some_key":-12345})"));
@@ -53,7 +54,7 @@ TEST(JsonUtil, ParseThenSerializeStructWtihNumberOk) {
 TEST(JsonUtil, ParseThenSerializeStructWtihBoolOk) {
   util::StatusOr<Struct> proto =
       JsonStringToProtoStruct(R"({"some_key":false})");
-  ASSERT_THAT(proto.status(), IsOk());
+  ASSERT_THAT(proto, IsOk());
 
   ASSERT_THAT(ProtoStructToJsonString(*proto),
               IsOkAndHolds(R"({"some_key":false})"));
@@ -62,7 +63,7 @@ TEST(JsonUtil, ParseThenSerializeStructWtihBoolOk) {
 TEST(JsonUtil, ParseThenSerializeListOk) {
   util::StatusOr<ListValue> proto =
       JsonStringToProtoList(R"(["hello", "world", 42, true])");
-  ASSERT_THAT(proto.status(), IsOk());
+  ASSERT_THAT(proto, IsOk());
 
   ASSERT_THAT(ProtoListToJsonString(*proto),
               IsOkAndHolds(R"(["hello","world",42,true])"));
@@ -95,7 +96,7 @@ TEST(JsonUtil, parseRecursiveJsonStringFails) {
 TEST(JsonUtil, ParseStructWithoutQuotesOk) {
   // TODO(b/360366279) Make parsing stricter that this is not allowed.
   util::StatusOr<Struct> proto = JsonStringToProtoStruct(R"({some_key:false})");
-  ASSERT_THAT(proto.status(), IsOk());
+  ASSERT_THAT(proto, IsOk());
   ASSERT_THAT(ProtoStructToJsonString(*proto),
               IsOkAndHolds(R"({"some_key":false})"));
 }

@@ -32,7 +32,7 @@ namespace tink {
 //   auto handle_result = KeysetHandle::GenerateNew(
 //       StreamingAeadKeyTemplates::Aes128GcmHkdf4KB());
 //   if (!handle_result.ok()) { /* fail with error */ }
-//   auto keyset_handle = std::move(handle_result.ValueOrDie());
+//   auto keyset_handle = std::move(handle_result.value());
 class StreamingAeadKeyTemplates {
  public:
   // Returns a KeyTemplate that generates new instances of
@@ -76,6 +76,18 @@ class StreamingAeadKeyTemplates {
 
   // Returns a KeyTemplate that generates new instances of
   // AesCtrHmacStreamingKey with the following parameters:
+  //   - main key (ikm) size: 16 bytes
+  //   - HKDF algorithm: HMAC-SHA256
+  //   - size of derived AES-CTR keys: 16 bytes
+  //   - tag algorithm: HMAC-SHA256
+  //   - tag size: 32 bytes
+  //   - ciphertext segment size: 1048576 bytes (1 MB)
+  //   - OutputPrefixType: RAW
+  static const google::crypto::tink::KeyTemplate&
+  Aes128CtrHmacSha256Segment1MB();
+
+  // Returns a KeyTemplate that generates new instances of
+  // AesCtrHmacStreamingKey with the following parameters:
   //   - main key (ikm) size: 32 bytes
   //   - HKDF algorithm: HMAC-SHA256
   //   - size of derived AES-CTR keys: 32 bytes
@@ -85,6 +97,18 @@ class StreamingAeadKeyTemplates {
   //   - OutputPrefixType: RAW
   static const google::crypto::tink::KeyTemplate&
   Aes256CtrHmacSha256Segment4KB();
+
+  // Returns a KeyTemplate that generates new instances of
+  // AesCtrHmacStreamingKey with the following parameters:
+  //   - main key (ikm) size: 32 bytes
+  //   - HKDF algorithm: HMAC-SHA256
+  //   - size of derived AES-CTR keys: 32 bytes
+  //   - tag algorithm: HMAC-SHA256
+  //   - tag size: 32 bytes
+  //   - ciphertext segment size: 1048576 bytes (1 MB)
+  //   - OutputPrefixType: RAW
+  static const google::crypto::tink::KeyTemplate&
+  Aes256CtrHmacSha256Segment1MB();
 };
 
 }  // namespace tink

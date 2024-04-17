@@ -16,21 +16,28 @@
 
 #include "tink/signature/public_key_verify_factory.h"
 
+#include <string>
+#include <utility>
+
 #include "gtest/gtest.h"
-#include "tink/config.h"
 #include "tink/crypto_format.h"
 #include "tink/keyset_handle.h"
 #include "tink/public_key_verify.h"
 #include "tink/registry.h"
 #include "tink/signature/ecdsa_verify_key_manager.h"
 #include "tink/signature/signature_config.h"
-#include "tink/util/test_keyset_handle.h"
 #include "tink/util/status.h"
+#include "tink/util/test_keyset_handle.h"
 #include "tink/util/test_util.h"
 #include "proto/ecdsa.pb.h"
 #include "proto/tink.pb.h"
 
-using crypto::tink::TestKeysetHandle;
+namespace crypto {
+namespace tink {
+namespace {
+
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 using crypto::tink::test::AddTinkKey;
 using google::crypto::tink::EcdsaPublicKey;
 using google::crypto::tink::EcdsaSignatureEncoding;
@@ -39,10 +46,6 @@ using google::crypto::tink::HashType;
 using google::crypto::tink::KeyData;
 using google::crypto::tink::Keyset;
 using google::crypto::tink::KeyStatusType;
-
-namespace crypto {
-namespace tink {
-namespace {
 
 class PublicKeyVerifyFactoryTest : public ::testing::Test {
  protected:
@@ -64,10 +67,10 @@ TEST_F(PublicKeyVerifyFactoryTest, testBasic) {
   auto public_key_verify_result = PublicKeyVerifyFactory::GetPrimitive(
       *TestKeysetHandle::GetKeysetHandle(keyset));
   EXPECT_FALSE(public_key_verify_result.ok());
-  EXPECT_EQ(util::error::INVALID_ARGUMENT,
-      public_key_verify_result.status().error_code());
+  EXPECT_EQ(absl::StatusCode::kInvalidArgument,
+      public_key_verify_result.status().code());
   EXPECT_PRED_FORMAT2(testing::IsSubstring, "at least one key",
-      public_key_verify_result.status().error_message());
+                      std::string(public_key_verify_result.status().message()));
 }
 
 TEST_F(PublicKeyVerifyFactoryTest, testPrimitive) {
@@ -95,8 +98,10 @@ TEST_F(PublicKeyVerifyFactoryTest, testPrimitive) {
       *TestKeysetHandle::GetKeysetHandle(keyset));
   EXPECT_TRUE(public_key_verify_result.ok())
       << public_key_verify_result.status();
-  auto public_key_verify = std::move(public_key_verify_result.ValueOrDie());
+  auto public_key_verify = std::move(public_key_verify_result.value());
 }
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace
 }  // namespace tink

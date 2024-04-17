@@ -16,11 +16,16 @@
 #ifndef TINK_STREAMINGAEAD_AES_CTR_HMAC_STREAMING_KEY_MANAGER_H_
 #define TINK_STREAMINGAEAD_AES_CTR_HMAC_STREAMING_KEY_MANAGER_H_
 
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "tink/core/key_type_manager.h"
+#include "tink/core/template_util.h"
+#include "tink/input_stream.h"
 #include "tink/streaming_aead.h"
 #include "tink/subtle/aes_ctr_hmac_streaming.h"
 #include "tink/util/constants.h"
@@ -31,6 +36,7 @@
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "proto/aes_ctr_hmac_streaming.pb.h"
+#include "proto/hmac.pb.h"
 #include "proto/tink.pb.h"
 
 namespace crypto {
@@ -60,7 +66,7 @@ class AesCtrHmacStreamingKeyManager
           auto streaming_result =
               crypto::tink::subtle::AesCtrHmacStreaming::New(params);
           if (!streaming_result.ok()) return streaming_result.status();
-          return {std::move(streaming_result.ValueOrDie())};
+          return {std::move(streaming_result.value())};
         }
   };
 
@@ -95,7 +101,7 @@ class AesCtrHmacStreamingKeyManager
       const google::crypto::tink::AesCtrHmacStreamingKeyFormat& key_format,
       InputStream* input_stream) const override;
 
-  ~AesCtrHmacStreamingKeyManager() override {}
+  ~AesCtrHmacStreamingKeyManager() override = default;
 
  private:
   const std::string key_type_ = absl::StrCat(

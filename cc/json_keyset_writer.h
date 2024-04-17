@@ -17,7 +17,9 @@
 #ifndef TINK_JSON_KEYSET_WRITER_H_
 #define TINK_JSON_KEYSET_WRITER_H_
 
+#include <memory>
 #include <ostream>
+#include <utility>
 
 #include "absl/strings/string_view.h"
 #include "tink/keyset_writer.h"

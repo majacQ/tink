@@ -16,13 +16,31 @@
 
 #include "tink/util/file_random_access_stream.h"
 
-#include <thread>  // NOLINT(build/c++11)
+#include <fcntl.h>
+#include <unistd.h>
 
+#include <cerrno>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <ostream>
+#include <string>
+#include <thread>  // NOLINT(build/c++11)
+#include <utility>
+
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "tink/internal/test_file_util.h"
+#include "tink/random_access_stream.h"
+#include "tink/subtle/random.h"
 #include "tink/util/buffer.h"
+#include "tink/util/status.h"
+#include "tink/util/statusor.h"
+#include "tink/util/test_matchers.h"
 #include "tink/util/test_util.h"
 
 namespace crypto {
@@ -30,13 +48,27 @@ namespace tink {
 namespace util {
 namespace {
 
+using ::crypto::tink::test::IsOk;
+
+// Opens test file `filename` and returns a file descriptor to it.
+util::StatusOr<int> OpenTestFileToRead(absl::string_view filename) {
+  std::string full_filename = absl::StrCat(test::TmpDir(), "/", filename);
+  int fd = open(full_filename.c_str(), O_RDONLY);
+  if (fd == -1) {
+    return util::Status(absl::StatusCode::kInternal,
+                        absl::StrCat("Cannot open file ", full_filename,
+                                     " error: ", std::strerror(errno)));
+  }
+  return fd;
+}
+
 // Reads the entire 'ra_stream' in chunks of size 'chunk_size',
 // until no more bytes can be read, and puts the read bytes into 'contents'.
 // Returns the status of the last ra_stream->Next()-operation.
 util::Status ReadAll(RandomAccessStream* ra_stream, int chunk_size,
                      std::string* contents) {
   contents->clear();
-  auto buffer = std::move(Buffer::New(chunk_size).ValueOrDie());
+  auto buffer = std::move(Buffer::New(chunk_size).value());
   int64_t position = 0;
   auto status = ra_stream->PRead(position, chunk_size, buffer.get());
   while (status.ok()) {
@@ -44,7 +76,7 @@ util::Status ReadAll(RandomAccessStream* ra_stream, int chunk_size,
     position = contents->size();
     status = ra_stream->PRead(position, chunk_size, buffer.get());
   }
-  if (status.error_code() == util::error::OUT_OF_RANGE) {  // EOF
+  if (status.code() == absl::StatusCode::kOutOfRange) {  // EOF
     EXPECT_EQ(0, buffer->size());
   }
   return status;
@@ -59,8 +91,8 @@ void ReadAndVerifyChunk(RandomAccessStream* ra_stream,
   SCOPED_TRACE(absl::StrCat("stream_size = ", file_contents.size(),
                             ", position = ", position,
                             ", count = ", count));
-  auto buffer = std::move(Buffer::New(count).ValueOrDie());
-  int stream_size = ra_stream->size().ValueOrDie();
+  auto buffer = std::move(Buffer::New(count).value());
+  int stream_size = ra_stream->size().value();
   EXPECT_EQ(file_contents.size(), stream_size);
   auto status = ra_stream->PRead(position, count, buffer.get());
   EXPECT_TRUE(status.ok());
@@ -77,52 +109,63 @@ void ReadAndVerifyChunk(RandomAccessStream* ra_stream,
 TEST(FileRandomAccessStreamTest, ReadingStreams) {
   for (auto stream_size : {1, 10, 100, 1000, 10000, 1000000}) {
     SCOPED_TRACE(absl::StrCat("stream_size = ", stream_size));
-    std::string file_contents;
-    std::string filename = absl::StrCat(stream_size, "_reading_test.bin");
-    int input_fd =
-        test::GetTestFileDescriptor(filename, stream_size, &file_contents);
+    std::string file_contents = subtle::Random::GetRandomBytes(stream_size);
+    std::string filename = absl::StrCat(
+        stream_size, crypto::tink::internal::GetTestFileNamePrefix(),
+        "_file.bin");
+    ASSERT_THAT(crypto::tink::internal::CreateTestFile(filename, file_contents),
+                IsOk());
+    util::StatusOr<int> input_fd = OpenTestFileToRead(filename);
+    ASSERT_THAT(input_fd.status(), IsOk());
     EXPECT_EQ(stream_size, file_contents.size());
-    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(input_fd);
+    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(*input_fd);
     std::string stream_contents;
-    auto status = ReadAll(ra_stream.get(), 1 + (stream_size / 10),
-                          &stream_contents);
-    EXPECT_EQ(util::error::OUT_OF_RANGE, status.error_code());
-    EXPECT_EQ("EOF", status.error_message());
+    auto status =
+        ReadAll(ra_stream.get(), 1 + (stream_size / 10), &stream_contents);
+    EXPECT_EQ(absl::StatusCode::kOutOfRange, status.code());
+    EXPECT_EQ("EOF", status.message());
     EXPECT_EQ(file_contents, stream_contents);
-    EXPECT_EQ(stream_size, ra_stream->size().ValueOrDie());
+    EXPECT_EQ(stream_size, ra_stream->size().value());
   }
 }
 
 TEST(FileRandomAccessStreamTest, ReadingStreamsTillLastByte) {
   for (auto stream_size : {1, 10, 100, 1000, 10000}) {
     SCOPED_TRACE(absl::StrCat("stream_size = ", stream_size));
-    std::string file_contents;
-    std::string filename = absl::StrCat(stream_size, "_reading_test.bin");
-    int input_fd =
-        test::GetTestFileDescriptor(filename, stream_size, &file_contents);
+    std::string file_contents = subtle::Random::GetRandomBytes(stream_size);
+    std::string filename = absl::StrCat(
+        stream_size, crypto::tink::internal::GetTestFileNamePrefix(),
+        "_file.bin");
+    ASSERT_THAT(crypto::tink::internal::CreateTestFile(filename, file_contents),
+                IsOk());
+    util::StatusOr<int> input_fd = OpenTestFileToRead(filename);
+    ASSERT_THAT(input_fd.status(), IsOk());
     EXPECT_EQ(stream_size, file_contents.size());
-    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(input_fd);
-    auto buffer = std::move(Buffer::New(stream_size).ValueOrDie());
+    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(*input_fd);
+    auto buffer = std::move(Buffer::New(stream_size).value());
 
     // Read from the beginning till the last byte.
     auto status = ra_stream->PRead(/* position = */ 0,
                                    stream_size, buffer.get());
     EXPECT_TRUE(status.ok());
-    EXPECT_EQ(stream_size, ra_stream->size().ValueOrDie());
+    EXPECT_EQ(stream_size, ra_stream->size().value());
     EXPECT_EQ(0, memcmp(&file_contents[0],
                         buffer->get_mem_block(), stream_size));
   }
 }
 
-
 TEST(FileRandomAccessStreamTest, ConcurrentReads) {
   for (auto stream_size : {100, 1000, 10000, 100000}) {
-    std::string file_contents;
-    std::string filename = absl::StrCat(stream_size, "_reading_test.bin");
-    int input_fd =
-        test::GetTestFileDescriptor(filename, stream_size, &file_contents);
+    std::string file_contents = subtle::Random::GetRandomBytes(stream_size);
+    std::string filename = absl::StrCat(
+        stream_size, crypto::tink::internal::GetTestFileNamePrefix(),
+        "_file.bin");
+    ASSERT_THAT(crypto::tink::internal::CreateTestFile(filename, file_contents),
+                IsOk());
+    util::StatusOr<int> input_fd = OpenTestFileToRead(filename);
+    ASSERT_THAT(input_fd.status(), IsOk());
     EXPECT_EQ(stream_size, file_contents.size());
-    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(input_fd);
+    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(*input_fd);
     std::thread read_0(ReadAndVerifyChunk,
         ra_stream.get(), 0, stream_size / 2, file_contents);
     std::thread read_1(ReadAndVerifyChunk,
@@ -140,56 +183,68 @@ TEST(FileRandomAccessStreamTest, ConcurrentReads) {
 
 TEST(FileRandomAccessStreamTest, NegativeReadPosition) {
   for (auto stream_size : {0, 10, 100, 1000, 10000}) {
-    std::string file_contents;
-    std::string filename = absl::StrCat(stream_size, "_reading_test.bin");
-    int input_fd =
-        test::GetTestFileDescriptor(filename, stream_size, &file_contents);
-    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(input_fd);
+    std::string file_contents = subtle::Random::GetRandomBytes(stream_size);
+    std::string filename = absl::StrCat(
+        stream_size, crypto::tink::internal::GetTestFileNamePrefix(),
+        "_file.bin");
+    ASSERT_THAT(crypto::tink::internal::CreateTestFile(filename, file_contents),
+                IsOk());
+    util::StatusOr<int> input_fd = OpenTestFileToRead(filename);
+    ASSERT_THAT(input_fd.status(), IsOk());
+    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(*input_fd);
     int count = 42;
-    auto buffer = std::move(Buffer::New(count).ValueOrDie());
+    auto buffer = std::move(Buffer::New(count).value());
     for (auto position : {-100, -10, -1}) {
       SCOPED_TRACE(absl::StrCat("stream_size = ", stream_size,
                                 " position = ", position));
 
       auto status = ra_stream->PRead(position, count, buffer.get());
-      EXPECT_EQ(util::error::INVALID_ARGUMENT, status.error_code());
+      EXPECT_EQ(absl::StatusCode::kInvalidArgument, status.code());
     }
   }
 }
 
 TEST(FileRandomAccessStreamTest, NotPositiveReadCount) {
   for (auto stream_size : {0, 10, 100, 1000, 10000}) {
-    std::string file_contents;
-    std::string filename = absl::StrCat(stream_size, "_reading_test.bin");
-    int input_fd =
-        test::GetTestFileDescriptor(filename, stream_size, &file_contents);
-    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(input_fd);
-    auto buffer = std::move(Buffer::New(42).ValueOrDie());
+    std::string file_contents = subtle::Random::GetRandomBytes(stream_size);
+    std::string filename = absl::StrCat(
+        stream_size, crypto::tink::internal::GetTestFileNamePrefix(),
+        "_file.bin");
+    ASSERT_THAT(crypto::tink::internal::CreateTestFile(filename, file_contents),
+                IsOk());
+    util::StatusOr<int> input_fd = OpenTestFileToRead(filename);
+    ASSERT_THAT(input_fd.status(), IsOk());
+    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(*input_fd);
+    auto buffer = std::move(Buffer::New(42).value());
     int64_t position = 0;
     for (auto count : {-100, -10, -1, 0}) {
       SCOPED_TRACE(absl::StrCat("stream_size = ", stream_size,
                                 " count = ", count));
       auto status = ra_stream->PRead(position, count, buffer.get());
-      EXPECT_EQ(util::error::INVALID_ARGUMENT, status.error_code());
+      EXPECT_EQ(absl::StatusCode::kInvalidArgument, status.code());
     }
   }
 }
 
 TEST(FileRandomAccessStreamTest, ReadPositionAfterEof) {
   for (auto stream_size : {0, 10, 100, 1000, 10000}) {
-    std::string file_contents;
-    std::string filename = absl::StrCat(stream_size, "_reading_test.bin");
-    int input_fd =
-        test::GetTestFileDescriptor(filename, stream_size, &file_contents);
-    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(input_fd);
+    std::string file_contents = subtle::Random::GetRandomBytes(stream_size);
+    std::string filename = absl::StrCat(
+        stream_size, crypto::tink::internal::GetTestFileNamePrefix(),
+        "_file.bin");
+    ASSERT_THAT(crypto::tink::internal::CreateTestFile(filename, file_contents),
+                IsOk());
+    util::StatusOr<int> input_fd = OpenTestFileToRead(filename);
+    ASSERT_THAT(input_fd.status(), IsOk());
+    auto ra_stream = absl::make_unique<util::FileRandomAccessStream>(*input_fd);
     int count = 42;
-    auto buffer = std::move(Buffer::New(count).ValueOrDie());
+    auto buffer = std::move(Buffer::New(count).value());
     for (auto position : {stream_size + 1, stream_size + 10}) {
       SCOPED_TRACE(absl::StrCat("stream_size = ", stream_size,
                                 " position = ", position));
 
       auto status = ra_stream->PRead(position, count, buffer.get());
-      EXPECT_EQ(util::error::OUT_OF_RANGE, status.error_code());
+      EXPECT_EQ(absl::StatusCode::kOutOfRange, status.code());
       EXPECT_EQ(0, buffer->size());
     }
   }

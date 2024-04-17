@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,14 +18,20 @@ package com.google.crypto.tink.daead;
 
 import com.google.crypto.tink.CryptoFormat;
 import com.google.crypto.tink.DeterministicAead;
-import com.google.crypto.tink.PrimitiveSet;
 import com.google.crypto.tink.PrimitiveWrapper;
-import com.google.crypto.tink.Registry;
-import com.google.crypto.tink.subtle.Bytes;
+import com.google.crypto.tink.daead.internal.LegacyFullDeterministicAead;
+import com.google.crypto.tink.internal.LegacyProtoKey;
+import com.google.crypto.tink.internal.MonitoringUtil;
+import com.google.crypto.tink.internal.MutableMonitoringRegistry;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveConstructor;
+import com.google.crypto.tink.internal.PrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveSet;
+import com.google.crypto.tink.monitoring.MonitoringClient;
+import com.google.crypto.tink.monitoring.MonitoringKeysetInfo;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Logger;
 
 /**
  * The implementation of {@code PrimitiveWrapper<DeterministicAead>}.
@@ -38,41 +44,62 @@ import java.util.logging.Logger;
  */
 public class DeterministicAeadWrapper
     implements PrimitiveWrapper<DeterministicAead, DeterministicAead> {
-  private static final Logger logger = Logger.getLogger(DeterministicAeadWrapper.class.getName());
+
+  private static final DeterministicAeadWrapper WRAPPER = new DeterministicAeadWrapper();
+  private static final PrimitiveConstructor<LegacyProtoKey, DeterministicAead>
+      LEGACY_FULL_DAEAD_PRIMITIVE_CONSTRUCTOR =
+          PrimitiveConstructor.create(
+              LegacyFullDeterministicAead::create, LegacyProtoKey.class, DeterministicAead.class);
 
   private static class WrappedDeterministicAead implements DeterministicAead {
-    private PrimitiveSet<DeterministicAead> primitives;
+    private final PrimitiveSet<DeterministicAead> primitives;
+
+    private final MonitoringClient.Logger encLogger;
+    private final MonitoringClient.Logger decLogger;
 
     public WrappedDeterministicAead(PrimitiveSet<DeterministicAead> primitives) {
       this.primitives = primitives;
+      if (primitives.hasAnnotations()) {
+        MonitoringClient client = MutableMonitoringRegistry.globalInstance().getMonitoringClient();
+        MonitoringKeysetInfo keysetInfo = MonitoringUtil.getMonitoringKeysetInfo(primitives);
+        this.encLogger = client.createLogger(keysetInfo, "daead", "encrypt");
+        this.decLogger = client.createLogger(keysetInfo, "daead", "decrypt");
+      } else {
+        this.encLogger = MonitoringUtil.DO_NOTHING_LOGGER;
+        this.decLogger = MonitoringUtil.DO_NOTHING_LOGGER;
+      }
     }
 
     @Override
     public byte[] encryptDeterministically(final byte[] plaintext, final byte[] associatedData)
         throws GeneralSecurityException {
-      return Bytes.concat(
-          primitives.getPrimary().getIdentifier(),
-          primitives
-              .getPrimary()
-              .getPrimitive()
-              .encryptDeterministically(plaintext, associatedData));
+      try {
+        byte[] output =
+            primitives
+                .getPrimary()
+                .getFullPrimitive()
+                .encryptDeterministically(plaintext, associatedData);
+        encLogger.log(primitives.getPrimary().getKeyId(), plaintext.length);
+        return output;
+      } catch (GeneralSecurityException e) {
+        encLogger.logFailure();
+        throw e;
+      }
     }
 
     @Override
     public byte[] decryptDeterministically(final byte[] ciphertext, final byte[] associatedData)
         throws GeneralSecurityException {
       if (ciphertext.length > CryptoFormat.NON_RAW_PREFIX_SIZE) {
-        byte[] prefix = Arrays.copyOfRange(ciphertext, 0, CryptoFormat.NON_RAW_PREFIX_SIZE);
-        byte[] ciphertextNoPrefix =
-            Arrays.copyOfRange(ciphertext, CryptoFormat.NON_RAW_PREFIX_SIZE, ciphertext.length);
+        byte[] prefix = Arrays.copyOf(ciphertext, CryptoFormat.NON_RAW_PREFIX_SIZE);
         List<PrimitiveSet.Entry<DeterministicAead>> entries = primitives.getPrimitive(prefix);
         for (PrimitiveSet.Entry<DeterministicAead> entry : entries) {
           try {
-            return entry
-                .getPrimitive()
-                .decryptDeterministically(ciphertextNoPrefix, associatedData);
+            byte[] output =
+                entry.getFullPrimitive().decryptDeterministically(ciphertext, associatedData);
+            decLogger.log(entry.getKeyId(), ciphertext.length);
+            return output;
           } catch (GeneralSecurityException e) {
-            logger.info("ciphertext prefix matches a key, but cannot decrypt: " + e.toString());
             continue;
           }
         }
@@ -82,12 +109,16 @@ public class DeterministicAeadWrapper
       List<PrimitiveSet.Entry<DeterministicAead>> entries = primitives.getRawPrimitives();
       for (PrimitiveSet.Entry<DeterministicAead> entry : entries) {
         try {
-          return entry.getPrimitive().decryptDeterministically(ciphertext, associatedData);
+          byte[] output =
+              entry.getFullPrimitive().decryptDeterministically(ciphertext, associatedData);
+          decLogger.log(entry.getKeyId(), ciphertext.length);
+          return output;
         } catch (GeneralSecurityException e) {
           continue;
         }
       }
       // nothing works.
+      decLogger.logFailure();
       throw new GeneralSecurityException("decryption failed");
     }
   }
@@ -110,6 +141,18 @@ public class DeterministicAeadWrapper
   }
 
   public static void register() throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new DeterministicAeadWrapper());
+    MutablePrimitiveRegistry.globalInstance().registerPrimitiveWrapper(WRAPPER);
+    MutablePrimitiveRegistry.globalInstance()
+        .registerPrimitiveConstructor(LEGACY_FULL_DAEAD_PRIMITIVE_CONSTRUCTOR);
+  }
+
+  /**
+   * registerToInternalPrimitiveRegistry is a non-public method (it takes an argument of an
+   * internal-only type) registering an instance of {@code DeterministicAeadWrapper} to the provided
+   * {@code PrimitiveRegistry.Builder}.
+   */
+  public static void registerToInternalPrimitiveRegistry(
+      PrimitiveRegistry.Builder primitiveRegistryBuilder) throws GeneralSecurityException {
+    primitiveRegistryBuilder.registerPrimitiveWrapper(WRAPPER);
   }
 }

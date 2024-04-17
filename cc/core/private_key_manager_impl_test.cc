@@ -15,12 +15,19 @@
 ///////////////////////////////////////////////////////////////////////////////
 #include "tink/core/private_key_manager_impl.h"
 
+#include <cstdint>
+#include <memory>
 #include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "tink/core/key_manager_impl.h"
+#include "tink/core/key_type_manager.h"
 #include "tink/core/private_key_type_manager.h"
+#include "tink/core/template_util.h"
+#include "tink/key_manager.h"
 #include "tink/registry.h"
 #include "tink/subtle/aes_gcm_boringssl.h"
 #include "tink/subtle/random.h"
@@ -41,16 +48,21 @@ using ::google::crypto::tink::EcdsaKeyFormat;
 using ::google::crypto::tink::EcdsaPrivateKey;
 using ::google::crypto::tink::EcdsaPublicKey;
 using ::google::crypto::tink::EcdsaSignatureEncoding;
-using ::google::crypto::tink::KeyData;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Return;
 
+}  // namespace
+
 // Placeholders for the primitives. We don't really want to test anything with
 // these except that things compile and List<PrivatePrimitive> is never confused
 // with List<PublicPrimitive> in private_key_manager_impl.
+// NOTE: These are outside of the anonymous namespace to allow compiling with
+// MSVC.
 class PrivatePrimitive {};
 class PublicPrimitive {};
+
+namespace {
 
 class ExamplePrivateKeyTypeManager
     : public PrivateKeyTypeManager<EcdsaPrivateKey, EcdsaKeyFormat,
@@ -60,7 +72,7 @@ class ExamplePrivateKeyTypeManager
    public:
     crypto::tink::util::StatusOr<std::unique_ptr<PrivatePrimitive>> Create(
         const EcdsaPrivateKey& key) const override {
-      return util::Status(util::error::UNIMPLEMENTED, "Not implemented");
+      return util::Status(absl::StatusCode::kUnimplemented, "Not implemented");
     }
   };
 
@@ -109,7 +121,7 @@ class TestPublicKeyTypeManager
    public:
     crypto::tink::util::StatusOr<std::unique_ptr<PublicPrimitive>> Create(
         const EcdsaPublicKey& key) const override {
-      return util::Status(util::error::UNIMPLEMENTED, "Not implemented");
+      return util::Status(absl::StatusCode::kUnimplemented, "Not implemented");
     }
   };
 
@@ -143,7 +155,7 @@ TEST(PrivateKeyManagerImplTest, FactoryNewKeyFromMessage) {
 
   EcdsaKeyFormat key_format;
   key_format.mutable_params()->set_encoding(EcdsaSignatureEncoding::DER);
-  auto key = key_manager->get_key_factory().NewKey(key_format).ValueOrDie();
+  auto key = key_manager->get_key_factory().NewKey(key_format).value();
   EXPECT_THAT(
       dynamic_cast<EcdsaPrivateKey&>(*key).public_key().params().encoding(),
       Eq(EcdsaSignatureEncoding::DER));
@@ -162,7 +174,7 @@ TEST(PrivateKeyManagerImplTest, GetPublicKeyData) {
   auto key_data =
       dynamic_cast<const PrivateKeyFactory&>(key_manager->get_key_factory())
           .GetPublicKeyData(private_key.SerializeAsString())
-          .ValueOrDie();
+          .value();
   ASSERT_THAT(key_data->type_url(), Eq(public_km.get_key_type()));
   EcdsaPublicKey public_key;
   public_key.ParseFromString(key_data->value());
@@ -173,7 +185,7 @@ TEST(PrivateKeyManagerImplTest, GetPublicKeyDataValidatePrivateKey) {
   ExamplePrivateKeyTypeManager private_km;
   TestPublicKeyTypeManager public_km;
   EXPECT_CALL(private_km, ValidateKey)
-      .WillOnce(Return(util::Status(util::error::OUT_OF_RANGE,
+      .WillOnce(Return(util::Status(absl::StatusCode::kOutOfRange,
                                     "GetPublicKeyDataValidatePrivateKey")));
 
   std::unique_ptr<KeyManager<PrivatePrimitive>> key_manager =
@@ -183,7 +195,7 @@ TEST(PrivateKeyManagerImplTest, GetPublicKeyDataValidatePrivateKey) {
       dynamic_cast<const PrivateKeyFactory&>(key_manager->get_key_factory())
           .GetPublicKeyData(EcdsaPrivateKey().SerializeAsString())
           .status(),
-      StatusIs(util::error::OUT_OF_RANGE,
+      StatusIs(absl::StatusCode::kOutOfRange,
                HasSubstr("GetPublicKeyDataValidatePrivateKey")));
 }
 
@@ -199,7 +211,7 @@ TEST(PrivateKeyManagerImplTest, PublicKeyManagerCanHaveShortLifetime) {
 
   EcdsaKeyFormat key_format;
   key_format.mutable_params()->set_encoding(EcdsaSignatureEncoding::DER);
-  auto key = key_manager->get_key_factory().NewKey(key_format).ValueOrDie();
+  auto key = key_manager->get_key_factory().NewKey(key_format).value();
   EXPECT_THAT(
       dynamic_cast<EcdsaPrivateKey&>(*key).public_key().params().encoding(),
       Eq(EcdsaSignatureEncoding::DER));

@@ -17,8 +17,15 @@
 #ifndef TINK_CORE_KEY_TYPE_MANAGER_H_
 #define TINK_CORE_KEY_TYPE_MANAGER_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <tuple>
+#include <type_traits>
+#include <typeinfo>
 
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "tink/core/template_util.h"
 #include "tink/input_stream.h"
@@ -39,7 +46,7 @@ namespace internal {
 template <typename KeyProto, typename KeyFormatProto>
 class InternalKeyFactory {
  public:
-  virtual ~InternalKeyFactory() {}
+  virtual ~InternalKeyFactory() = default;
 
   // Validates a key format proto.  KeyFormatProtos
   // on which this function returns a non-ok status will not be passed to
@@ -56,7 +63,7 @@ class InternalKeyFactory {
   virtual crypto::tink::util::StatusOr<KeyProto> DeriveKey(
       const KeyFormatProto& key_format, InputStream* input_stream) const {
     return crypto::tink::util::Status(
-        crypto::tink::util::error::UNIMPLEMENTED,
+        absl::StatusCode::kUnimplemented,
         "Deriving key not implemented for this key type.");
   }
 };
@@ -66,7 +73,7 @@ class InternalKeyFactory {
 template <typename KeyProto>
 class InternalKeyFactory<KeyProto, void> {
  public:
-  virtual ~InternalKeyFactory() {}
+  virtual ~InternalKeyFactory() = default;
 };
 
 }  // namespace internal
@@ -109,7 +116,7 @@ class KeyTypeManager<KeyProtoParam, KeyFormatProtoParam, List<Primitives...>>
   template <typename Primitive>
   class PrimitiveFactory {
    public:
-    virtual ~PrimitiveFactory() {}
+    virtual ~PrimitiveFactory() = default;
     virtual crypto::tink::util::StatusOr<std::unique_ptr<Primitive>> Create(
         const KeyProto& key) const = 0;
   };
@@ -154,7 +161,7 @@ class KeyTypeManager<KeyProtoParam, KeyFormatProtoParam, List<Primitives...>>
       util::StatusOr<std::unique_ptr<Primitive>>>::type
   GetPrimitiveImpl(const KeyProto& key) const {
     return util::Status(
-        util::error::INVALID_ARGUMENT,
+        absl::StatusCode::kInvalidArgument,
         absl::StrCat("No PrimitiveFactory was registered for type ",
                      typeid(Primitive).name()));
   }

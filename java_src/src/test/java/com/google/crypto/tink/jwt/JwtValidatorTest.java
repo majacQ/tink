@@ -36,7 +36,6 @@ public final class JwtValidatorTest {
     assertThrows(
         NullPointerException.class, () -> JwtValidator.newBuilder().expectTypeHeader(null));
     assertThrows(NullPointerException.class, () -> JwtValidator.newBuilder().expectIssuer(null));
-    assertThrows(NullPointerException.class, () -> JwtValidator.newBuilder().expectSubject(null));
     assertThrows(NullPointerException.class, () -> JwtValidator.newBuilder().expectAudience(null));
     assertThrows(NullPointerException.class, () -> JwtValidator.newBuilder().setClock(null));
     assertThrows(NullPointerException.class, () -> JwtValidator.newBuilder().setClockSkew(null));
@@ -155,6 +154,63 @@ public final class JwtValidatorTest {
   }
 
   @Test
+  public void validate_tokenWithIssuedAt() throws Exception {
+    Clock clock1 = Clock.systemUTC();
+    RawJwt tokenWithIssuedAtInTheFuture =
+        RawJwt.newBuilder()
+            .setIssuedAt(clock1.instant().plus(Duration.ofMinutes(1)))
+            .withoutExpiration()
+            .build();
+    RawJwt tokenWithIssuedAtInThePast =
+        RawJwt.newBuilder()
+            .setIssuedAt(clock1.instant().minus(Duration.ofMinutes(1)))
+            .withoutExpiration()
+            .build();
+    RawJwt tokenWithoutIssuedAt = RawJwt.newBuilder().withoutExpiration().build();
+
+    JwtValidator validator =
+        JwtValidator.newBuilder().allowMissingExpiration().build();
+    Object unused = validator.validate(tokenWithIssuedAtInTheFuture);
+    unused = validator.validate(tokenWithIssuedAtInThePast);
+    unused = validator.validate(tokenWithoutIssuedAt);
+
+    JwtValidator issuedAtValidator =
+        JwtValidator.newBuilder()
+            .allowMissingExpiration()
+            .expectIssuedInThePast()
+            .build();
+    assertThrows(
+        JwtInvalidException.class, () -> issuedAtValidator.validate(tokenWithIssuedAtInTheFuture));
+    unused = issuedAtValidator.validate(tokenWithIssuedAtInThePast);
+    assertThrows(JwtInvalidException.class, () -> issuedAtValidator.validate(tokenWithoutIssuedAt));
+  }
+
+  @Test
+  public void validate_tokenWithIssuedAtInTheFuture_clockSkew() throws Exception {
+    Clock clock1 = Clock.systemUTC();
+    RawJwt tokenOneMinuteInTheFuture =
+        RawJwt.newBuilder()
+            .setIssuedAt(clock1.instant().plus(Duration.ofMinutes(1)))
+            .withoutExpiration()
+            .build();
+    JwtValidator validatorWithoutClockSkew =
+        JwtValidator.newBuilder()
+            .allowMissingExpiration()
+            .expectIssuedInThePast()
+            .build();
+    assertThrows(
+        JwtInvalidException.class,
+        () -> validatorWithoutClockSkew.validate(tokenOneMinuteInTheFuture));
+    JwtValidator validatorWithOneMinuteClockSkew =
+        JwtValidator.newBuilder()
+            .allowMissingExpiration()
+            .expectIssuedInThePast()
+            .setClockSkew(Duration.ofMinutes(1))
+            .build();
+    Object unused = validatorWithOneMinuteClockSkew.validate(tokenOneMinuteInTheFuture);
+  }
+
+  @Test
   public void byDefaultRejectTokensWithoutExpiration() throws Exception {
     RawJwt tokenWithoutExpiration =
         RawJwt.newBuilder().setJwtId("id123").withoutExpiration().build();
@@ -205,7 +261,7 @@ public final class JwtValidatorTest {
     JwtValidator validator = JwtValidator.newBuilder().allowMissingExpiration().build();
 
     RawJwt tokenWithoutTypeHeader = RawJwt.newBuilder().withoutExpiration().build();
-    validator.validate(tokenWithoutTypeHeader);
+    Object unused = validator.validate(tokenWithoutTypeHeader);
   }
 
   @Test
@@ -224,9 +280,9 @@ public final class JwtValidatorTest {
 
     RawJwt tokenWithTypeHeader =
         RawJwt.newBuilder().setTypeHeader("headerType").withoutExpiration().build();
-    validator.validate(tokenWithTypeHeader);
+    Object unused = validator.validate(tokenWithTypeHeader);
     RawJwt tokenWithoutTypeHeader = RawJwt.newBuilder().withoutExpiration().build();
-    validator.validate(tokenWithoutTypeHeader);
+    unused = validator.validate(tokenWithoutTypeHeader);
   }
 
   @Test
@@ -263,7 +319,7 @@ public final class JwtValidatorTest {
     JwtValidator validator = JwtValidator.newBuilder().allowMissingExpiration().build();
 
     RawJwt tokenWithoutIssuer = RawJwt.newBuilder().withoutExpiration().build();
-    validator.validate(tokenWithoutIssuer);
+    Object unused = validator.validate(tokenWithoutIssuer);
   }
 
   @Test
@@ -280,67 +336,11 @@ public final class JwtValidatorTest {
         JwtValidator.newBuilder().allowMissingExpiration().ignoreIssuer().build();
 
     RawJwt tokenWithIssuer = RawJwt.newBuilder().setIssuer("issuer").withoutExpiration().build();
-    validator.validate(tokenWithIssuer);
+    Object unused = validator.validate(tokenWithIssuer);
     RawJwt tokenWithoutIssuer = RawJwt.newBuilder().withoutExpiration().build();
-    validator.validate(tokenWithoutIssuer);
+    unused = validator.validate(tokenWithoutIssuer);
   }
 
-  @Test
-  public void requireSubjectButNoSubjectInToken_shouldThrow() throws Exception {
-    RawJwt token = RawJwt.newBuilder().withoutExpiration().build();
-    JwtValidator validator =
-        JwtValidator.newBuilder().allowMissingExpiration().expectSubject("123").build();
-
-    assertThrows(JwtInvalidException.class, () -> validator.validate(token));
-  }
-
-  @Test
-  public void wrongSubjectInToken_shouldThrow() throws Exception {
-    RawJwt token =
-        RawJwt.newBuilder().setSubject("blah").withoutExpiration().build();
-    JwtValidator validator =
-        JwtValidator.newBuilder().allowMissingExpiration().expectSubject("123").build();
-
-    assertThrows(JwtInvalidException.class, () -> validator.validate(token));
-  }
-
-  @Test
-  public void correctSubjectInToken_success() throws Exception {
-    RawJwt unverified =
-        RawJwt.newBuilder().setSubject("123").withoutExpiration().build();
-    JwtValidator validator =
-        JwtValidator.newBuilder().allowMissingExpiration().expectSubject("123").build();
-    VerifiedJwt token = validator.validate(unverified);
-
-    assertThat(token.getSubject()).isEqualTo("123");
-  }
-
-  @Test
-  public void noSubject_success() throws Exception {
-    JwtValidator validator = JwtValidator.newBuilder().allowMissingExpiration().build();
-
-    RawJwt tokenWithoutSubject = RawJwt.newBuilder().withoutExpiration().build();
-    validator.validate(tokenWithoutSubject);
-  }
-
-  @Test
-  public void subjectInTokenButNoSubjectSetInValidator_shouldThrow() throws Exception {
-    JwtValidator validator = JwtValidator.newBuilder().allowMissingExpiration().build();
-
-    RawJwt tokenWithSubject = RawJwt.newBuilder().setSubject("subject").withoutExpiration().build();
-    assertThrows(JwtInvalidException.class, () -> validator.validate(tokenWithSubject));
-  }
-
-  @Test
-  public void ignoreSubjectSkipsValidationOfSubject() throws Exception {
-    JwtValidator validator =
-        JwtValidator.newBuilder().allowMissingExpiration().ignoreSubject().build();
-
-    RawJwt tokenWithSubject = RawJwt.newBuilder().setSubject("subject").withoutExpiration().build();
-    validator.validate(tokenWithSubject);
-    RawJwt tokenWithoutSubject = RawJwt.newBuilder().withoutExpiration().build();
-    validator.validate(tokenWithoutSubject);
-  }
 
   @Test
   public void requireAudienceButNoAudienceInToken_shouldThrow() throws Exception {
@@ -364,7 +364,7 @@ public final class JwtValidatorTest {
   public void noAudience_success() throws Exception {
     RawJwt token = RawJwt.newBuilder().withoutExpiration().build();
     JwtValidator validator = JwtValidator.newBuilder().allowMissingExpiration().build();
-    validator.validate(token);
+    Object unused = validator.validate(token);
   }
 
   @Test
@@ -410,9 +410,9 @@ public final class JwtValidatorTest {
             .addAudience("audience2")
             .withoutExpiration()
             .build();
-    validator.validate(tokenWithAudiences);
+    Object unused = validator.validate(tokenWithAudiences);
     RawJwt tokenWithoutAudience = RawJwt.newBuilder().withoutExpiration().build();
-    validator.validate(tokenWithoutAudience);
+    unused = validator.validate(tokenWithoutAudience);
   }
 
   @Test
@@ -425,9 +425,37 @@ public final class JwtValidatorTest {
         () -> JwtValidator.newBuilder().expectIssuer("a").ignoreIssuer().build());
     assertThrows(
         IllegalArgumentException.class,
-        () -> JwtValidator.newBuilder().expectSubject("a").ignoreSubject().build());
-    assertThrows(
-        IllegalArgumentException.class,
         () -> JwtValidator.newBuilder().expectAudience("a").ignoreAudiences().build());
+  }
+
+  @Test
+  public void toStringWithoutIgnore_success() throws Exception {
+    JwtValidator validator =
+        JwtValidator.newBuilder()
+            .expectTypeHeader("type")
+            .expectIssuer("issuer")
+            .expectAudience("audience")
+            .allowMissingExpiration()
+            .expectIssuedInThePast()
+            .setClockSkew(Duration.ofMinutes(1))
+            .build();
+    assertThat(validator.toString())
+        .isEqualTo(
+            "JwtValidator{expectedTypeHeader=type,expectedIssuer=issuer,expectedAudience=audience,"
+                + "allowMissingExpiration,expectIssuedInThePast,clockSkew=PT1M}");
+  }
+
+  @Test
+  public void toStringWithIgnore_success() throws Exception {
+    JwtValidator validator =
+        JwtValidator.newBuilder().ignoreTypeHeader().ignoreIssuer().ignoreAudiences().build();
+    assertThat(validator.toString())
+        .isEqualTo("JwtValidator{ignoreTypeHeader,ignoreIssuer,ignoreAudiences}");
+  }
+
+  @Test
+  public void emptyValidatorToString_success() throws Exception {
+    JwtValidator validator = JwtValidator.newBuilder().build();
+    assertThat(validator.toString()).isEqualTo("JwtValidator{}");
   }
 }

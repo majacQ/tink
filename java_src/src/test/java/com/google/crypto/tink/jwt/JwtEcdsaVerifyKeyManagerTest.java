@@ -16,101 +16,41 @@
 package com.google.crypto.tink.jwt;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
-import com.google.crypto.tink.KeyTypeManager;
-import com.google.crypto.tink.proto.JwtEcdsaAlgorithm;
-import com.google.crypto.tink.proto.JwtEcdsaKeyFormat;
-import com.google.crypto.tink.proto.JwtEcdsaPrivateKey;
-import com.google.crypto.tink.proto.JwtEcdsaPublicKey;
-import com.google.crypto.tink.proto.KeyData.KeyMaterialType;
-import com.google.crypto.tink.testing.TestUtil;
-import java.security.GeneralSecurityException;
-import java.util.Optional;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
+import com.google.crypto.tink.KeyTemplate;
+import com.google.crypto.tink.KeyTemplates;
+import com.google.crypto.tink.KeysetHandle;
+import com.google.crypto.tink.TinkProtoKeysetFormat;
+import com.google.crypto.tink.internal.KeyManagerRegistry;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
 /** Unit tests for EcdsaVerifyKeyManager. */
-@RunWith(JUnitParamsRunner.class)
+@RunWith(JUnit4.class)
 public final class JwtEcdsaVerifyKeyManagerTest {
-  private final JwtEcdsaSignKeyManager signManager = new JwtEcdsaSignKeyManager();
-  private final KeyTypeManager.KeyFactory<JwtEcdsaKeyFormat, JwtEcdsaPrivateKey> factory =
-      signManager.keyFactory();
-  private final JwtEcdsaVerifyKeyManager verifyManager = new JwtEcdsaVerifyKeyManager();
-
-  private static Object[] parametersAlgo() {
-    return new Object[] {JwtEcdsaAlgorithm.ES256, JwtEcdsaAlgorithm.ES384, JwtEcdsaAlgorithm.ES512};
+  @BeforeClass
+  public static void setUp() throws Exception {
+    JwtSignatureConfig.register();
   }
 
   @Test
-  public void basics() throws Exception {
-    assertThat(verifyManager.getKeyType())
-        .isEqualTo("type.googleapis.com/google.crypto.tink.JwtEcdsaPublicKey");
-    assertThat(verifyManager.getVersion()).isEqualTo(0);
-    assertThat(verifyManager.keyMaterialType()).isEqualTo(KeyMaterialType.ASYMMETRIC_PUBLIC);
+  public void testKeyManagersRegistered() throws Exception {
+    assertThat(
+            KeyManagerRegistry.globalInstance()
+                .getUntypedKeyManager("type.googleapis.com/google.crypto.tink.JwtEcdsaPublicKey"))
+        .isNotNull();
   }
 
   @Test
-  public void validateKey_empty_throw() throws Exception {
-    assertThrows(
-        GeneralSecurityException.class,
-        () -> verifyManager.validateKey(JwtEcdsaPublicKey.getDefaultInstance()));
-  }
+  public void serializeAndDeserializeKeysets() throws Exception {
+    KeyTemplate template = KeyTemplates.get("JWT_ES256_RAW");
+    KeysetHandle handle = KeysetHandle.generateNew(template).getPublicKeysetHandle();
 
-  @Test
-  @Parameters(method = "parametersAlgo")
-  public void validateKey_ok(JwtEcdsaAlgorithm algorithm) throws Exception {
-    if (TestUtil.isTsan()) {
-      // factory.createKey is too slow in Tsan.
-      return;
-    }
-    JwtEcdsaKeyFormat keyFormat = JwtEcdsaKeyFormat.newBuilder().setAlgorithm(algorithm).build();
-    JwtEcdsaPrivateKey privateKey = factory.createKey(keyFormat);
-    JwtEcdsaPublicKey publicKey = signManager.getPublicKey(privateKey);
-    verifyManager.validateKey(publicKey);
-  }
-
-  @Test
-  @Parameters(method = "parametersAlgo")
-  public void createPrimitive_ok(JwtEcdsaAlgorithm algorithm) throws Exception {
-    if (TestUtil.isTsan()) {
-      // factory.createKey is too slow in Tsan.
-      return;
-    }
-    JwtEcdsaKeyFormat keyFormat = JwtEcdsaKeyFormat.newBuilder().setAlgorithm(algorithm).build();
-    JwtEcdsaPrivateKey privateKey = factory.createKey(keyFormat);
-    JwtEcdsaPublicKey publicKey = signManager.getPublicKey(privateKey);
-    JwtPublicKeySignInternal signer =
-        signManager.getPrimitive(privateKey, JwtPublicKeySignInternal.class);
-    JwtPublicKeyVerify verifier = verifyManager.getPrimitive(publicKey, JwtPublicKeyVerify.class);
-    RawJwt token = RawJwt.newBuilder().withoutExpiration().build();
-    JwtValidator validator = JwtValidator.newBuilder().allowMissingExpiration().build();
-    verifier.verifyAndDecode(signer.signAndEncodeWithKid(token, Optional.empty()), validator);
-  }
-
-  @Test
-  @Parameters(method = "parametersAlgo")
-  public void createPrimitive_anotherKey_throw(JwtEcdsaAlgorithm algorithm) throws Exception {
-    if (TestUtil.isTsan()) {
-      // factory.createKey is too slow in Tsan.
-      return;
-    }
-    JwtEcdsaKeyFormat keyFormat = JwtEcdsaKeyFormat.newBuilder().setAlgorithm(algorithm).build();
-
-    JwtEcdsaPrivateKey privateKey = factory.createKey(keyFormat);
-    // Create a different key.
-    JwtEcdsaPublicKey publicKey = signManager.getPublicKey(factory.createKey(keyFormat));
-    JwtPublicKeySignInternal signer =
-        signManager.getPrimitive(privateKey, JwtPublicKeySignInternal.class);
-    JwtPublicKeyVerify verifier = verifyManager.getPrimitive(publicKey, JwtPublicKeyVerify.class);
-    RawJwt token = RawJwt.newBuilder().withoutExpiration().build();
-    JwtValidator validator = JwtValidator.newBuilder().allowMissingExpiration().build();
-    assertThrows(
-        GeneralSecurityException.class,
-        () ->
-            verifier.verifyAndDecode(
-                signer.signAndEncodeWithKid(token, Optional.empty()), validator));
+    byte[] serializedKeyset = TinkProtoKeysetFormat.serializeKeysetWithoutSecret(handle);
+    KeysetHandle parsed = TinkProtoKeysetFormat.parseKeysetWithoutSecret(serializedKeyset);
+    assertTrue(parsed.equalsKeyset(handle));
   }
 }

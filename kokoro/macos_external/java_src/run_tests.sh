@@ -14,17 +14,17 @@
 # limitations under the License.
 ################################################################################
 
-
 set -euo pipefail
-cd ${KOKORO_ARTIFACTS_DIR}/git/tink
 
-./kokoro/copy_credentials.sh
+export XCODE_VERSION="14.1"
+export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
+export ANDROID_HOME="/usr/local/share/android-sdk"
+export COURSIER_OPTS="-Djava.net.preferIPv6Addresses=true"
 
-export XCODE_VERSION=11.3
-export DEVELOPER_DIR="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
-export ANDROID_HOME="/Users/kbuilder/Library/Android/sdk"
+if [[ -n "${KOKORO_ROOT:-}" ]] ; then
+  cd "$(echo "${KOKORO_ARTIFACTS_DIR}"/git*/tink)"
+  export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-8-latest/Contents/Home
+fi
 
-cd java_src
-use_bazel.sh $(cat .bazelversion)
-bazel build ...
-bazel test --test_output=errors -- ...
+./kokoro/testutils/update_android_sdk.sh
+./kokoro/testutils/run_bazel_tests.sh java_src

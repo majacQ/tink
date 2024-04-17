@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 // Package mac provides implementations of the MAC primitive.
 //
@@ -25,13 +23,17 @@ import (
 	"fmt"
 
 	"github.com/google/tink/go/core/registry"
+	"github.com/google/tink/go/internal/internalregistry"
 )
 
 func init() {
-	if err := registry.RegisterKeyManager(newHMACKeyManager()); err != nil {
+	if err := registry.RegisterKeyManager(new(hmacKeyManager)); err != nil {
 		panic(fmt.Sprintf("mac.init() failed: %v", err))
 	}
-	if err := registry.RegisterKeyManager(newAESCMACKeyManager()); err != nil {
+	if err := internalregistry.AllowKeyDerivation(hmacTypeURL); err != nil {
+		panic(fmt.Sprintf("mac.init() failed: %v", err))
+	}
+	if err := registry.RegisterKeyManager(new(aescmacKeyManager)); err != nil {
 		panic(fmt.Sprintf("mac.init() failed: %v", err))
 	}
 }

@@ -16,22 +16,24 @@
 
 package com.google.crypto.tink.subtle;
 
+import com.google.crypto.tink.internal.BigIntegerEncoding;
+import com.google.crypto.tink.internal.Util;
 import com.google.crypto.tink.subtle.Enums.HashType;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
-import java.util.Arrays;
+import javax.annotation.Nullable;
 
 /** Helper methods. */
-public class SubtleUtil {
+public final class SubtleUtil {
 
   /**
    * Returns the Ecdsa algorithm name corresponding to a hash type.
    *
    * @param hash the hash type
    * @return the JCE's Ecdsa algorithm name for the hash.
-   * @throw GeneralSecurityExceptio if {@code hash} is not supported or is not safe for digital
+   * @throws GeneralSecurityException if {@code hash} is not supported or is not safe for digital
    *     signature.
    */
   public static String toEcdsaAlgo(HashType hash) throws GeneralSecurityException {
@@ -45,7 +47,7 @@ public class SubtleUtil {
    *
    * @param hash the hash type.
    * @return the JCE's RSA SSA PKCS1 algorithm name for the hash.
-   * @throw GeneralSecurityException if {@code hash} is not supported or is not safe for digital
+   * @throws GeneralSecurityException if {@code hash} is not supported or is not safe for digital
    *     signature.
    */
   public static String toRsaSsaPkcs1Algo(HashType hash) throws GeneralSecurityException {
@@ -58,7 +60,7 @@ public class SubtleUtil {
    *
    * @param hash the hash type.
    * @return theh JCE's hash algorithm name.
-   * @throw GeneralSecurityException if {@code hash} is not supported.
+   * @throws GeneralSecurityException if {@code hash} is not supported.
    */
   public static String toDigestAlgo(HashType hash) throws GeneralSecurityException {
     switch (hash) {
@@ -86,25 +88,30 @@ public class SubtleUtil {
     return "The Android Project".equals(System.getProperty("java.vendor"));
   }
 
-  /** Returns the Android API level or -1 if Tink isn't running on Android */
+  /**
+   * Returns the Android API level or -1 if Tink isn't running on Android.
+   *
+   * @deprecated Please reimplement this method in your code instead. From within Tink, use {@code
+   *     Util.getAndroidApiLevel} directly.
+   */
+  @Deprecated
   public static int androidApiLevel() {
-    try {
-      Class<?> buildVersion = Class.forName("android.os.Build$VERSION");
-      return buildVersion.getDeclaredField("SDK_INT").getInt(null);
-    } catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException e) {
-      return -1;
+    @Nullable Integer androidApiLevel = Util.getAndroidApiLevel();
+    if (androidApiLevel != null) {
+      return androidApiLevel;
     }
+    return -1;
   }
 
   /**
-   * Converts an byte array to a nonnegative integer
+   * Converts an unsigned, big-endian encoded byte array to a non-negative integer
    * (https://tools.ietf.org/html/rfc8017#section-4.1).
    *
    * @param bs the byte array to be converted to integer.
    * @return the corresponding integer.
    */
   public static BigInteger bytes2Integer(byte[] bs) {
-    return new BigInteger(1, bs);
+    return BigIntegerEncoding.fromUnsignedBigEndianBytes(bs);
   }
 
   /**
@@ -117,24 +124,7 @@ public class SubtleUtil {
    */
   public static byte[] integer2Bytes(BigInteger num, int intendedLength)
       throws GeneralSecurityException {
-    byte[] b = num.toByteArray();
-    if (b.length == intendedLength) {
-      return b;
-    }
-    if (b.length > intendedLength + 1 /* potential leading zero */) {
-      throw new GeneralSecurityException("integer too large");
-    }
-    if (b.length == intendedLength + 1) {
-      if (b[0] == 0 /* leading zero */) {
-        return Arrays.copyOfRange(b, 1, b.length);
-      } else {
-        throw new GeneralSecurityException("integer too large");
-      }
-    }
-    // Left zero pad b.
-    byte[] res = new byte[intendedLength];
-    System.arraycopy(b, 0, res, intendedLength - b.length, b.length);
-    return res;
+    return BigIntegerEncoding.toBigEndianBytesOfFixedLength(num, intendedLength);
   }
 
   /** Computes MGF1 as defined at https://tools.ietf.org/html/rfc8017#appendix-B.2.1. */
@@ -172,4 +162,6 @@ public class SubtleUtil {
     }
     buffer.putInt((int) value);
   }
+
+  private SubtleUtil() {}
 }

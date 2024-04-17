@@ -18,7 +18,6 @@ package com.google.crypto.tink.aead;
 
 import com.google.crypto.tink.Aead;
 import com.google.crypto.tink.KeysetHandle;
-import com.google.crypto.tink.Registry;
 import java.security.GeneralSecurityException;
 
 /**
@@ -41,13 +40,15 @@ import java.security.GeneralSecurityException;
 public final class AeadFactory {
   /**
    * @return a Aead primitive from a {@code keysetHandle}.
-   * @throws GeneralSecurityException
    * @deprecated Use {@code keysetHandle.GetPrimitive(Aead.class)} after registering the {@code
    *     AeadWrapper} instead.
    */
   @Deprecated
-  public static Aead getPrimitive(KeysetHandle keysetHandle) throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new AeadWrapper());
+  public static Aead getPrimitive(KeysetHandle keysetHandle)
+      throws GeneralSecurityException {
+    AeadWrapper.register();
     return keysetHandle.getPrimitive(Aead.class);
   }
+
+  private AeadFactory() {}
 }

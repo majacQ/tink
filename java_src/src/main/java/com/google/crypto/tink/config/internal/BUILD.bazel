@@ -10,13 +10,6 @@ java_library(
         "//src/main/java/com/google/crypto/tink/config:fips_enabled": ["TinkFipsEnabled.java"],
         "//conditions:default": ["TinkFipsDisabled.java"],
     }),
-    deps = select({
-        "//src/main/java/com/google/crypto/tink/config:fips_enabled": [
-            "@maven//:org_conscrypt_conscrypt_openjdk_uber",
-        ],
-        "//conditions:default": [
-        ],
-    }),
 )
 
 android_library(
@@ -24,14 +17,15 @@ android_library(
     srcs = select({
         "//src/main/java/com/google/crypto/tink/config:fips_enabled": ["TinkFipsEnabled.java"],
         "//conditions:default": ["TinkFipsDisabled.java"],
-        }),
-);
+    }),
+)
 
 java_library(
     name = "tink_fips_util",
     srcs = ["TinkFipsUtil.java"],
     deps = [
         ":tink_fips_status",
+        "//src/main/java/com/google/crypto/tink/internal:random",
     ],
 )
 
@@ -40,6 +34,6 @@ android_library(
     srcs = ["TinkFipsUtil.java"],
     deps = [
         ":tink_fips_status-android",
-        "@maven//:org_conscrypt_conscrypt_openjdk_uber",
+        "//src/main/java/com/google/crypto/tink/internal:random-android",
     ],
 )

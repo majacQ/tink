@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,17 @@
 package com.google.crypto.tink.hybrid;
 
 import com.google.crypto.tink.HybridEncrypt;
-import com.google.crypto.tink.PrimitiveSet;
 import com.google.crypto.tink.PrimitiveWrapper;
-import com.google.crypto.tink.Registry;
-import com.google.crypto.tink.subtle.Bytes;
+import com.google.crypto.tink.hybrid.internal.LegacyFullHybridEncrypt;
+import com.google.crypto.tink.internal.LegacyProtoKey;
+import com.google.crypto.tink.internal.MonitoringUtil;
+import com.google.crypto.tink.internal.MutableMonitoringRegistry;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveConstructor;
+import com.google.crypto.tink.internal.PrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveSet;
+import com.google.crypto.tink.monitoring.MonitoringClient;
+import com.google.crypto.tink.monitoring.MonitoringKeysetInfo;
 import java.security.GeneralSecurityException;
 
 /**
@@ -29,22 +36,49 @@ import java.security.GeneralSecurityException;
  * it uses the primary key in the keyset, and prepends to the ciphertext a certain prefix associated
  * with the primary key.
  */
-class HybridEncryptWrapper implements PrimitiveWrapper<HybridEncrypt, HybridEncrypt> {
+public class HybridEncryptWrapper implements PrimitiveWrapper<HybridEncrypt, HybridEncrypt> {
+
+  private static final HybridEncryptWrapper WRAPPER = new HybridEncryptWrapper();
+  private static final PrimitiveConstructor<LegacyProtoKey, HybridEncrypt>
+      LEGACY_PRIMITIVE_CONSTRUCTOR =
+          PrimitiveConstructor.create(
+              LegacyFullHybridEncrypt::create, LegacyProtoKey.class, HybridEncrypt.class);
+
   private static class WrappedHybridEncrypt implements HybridEncrypt {
     final PrimitiveSet<HybridEncrypt> primitives;
 
+    private final MonitoringClient.Logger encLogger;
+
     public WrappedHybridEncrypt(final PrimitiveSet<HybridEncrypt> primitives) {
       this.primitives = primitives;
+      if (primitives.hasAnnotations()) {
+        MonitoringClient client = MutableMonitoringRegistry.globalInstance().getMonitoringClient();
+        MonitoringKeysetInfo keysetInfo = MonitoringUtil.getMonitoringKeysetInfo(primitives);
+        this.encLogger = client.createLogger(keysetInfo, "hybrid_encrypt", "encrypt");
+      } else {
+        this.encLogger = MonitoringUtil.DO_NOTHING_LOGGER;
+      }
     }
 
     @Override
     public byte[] encrypt(final byte[] plaintext, final byte[] contextInfo)
         throws GeneralSecurityException {
-      return Bytes.concat(
-          primitives.getPrimary().getIdentifier(),
-          primitives.getPrimary().getPrimitive().encrypt(plaintext, contextInfo));
+      if (primitives.getPrimary() == null) {
+        encLogger.logFailure();
+        throw new GeneralSecurityException("keyset without primary key");
+      }
+      try {
+        byte[] output = primitives.getPrimary().getFullPrimitive().encrypt(plaintext, contextInfo);
+        encLogger.log(primitives.getPrimary().getKeyId(), plaintext.length);
+        return output;
+      } catch (GeneralSecurityException e) {
+        encLogger.logFailure();
+        throw e;
+      }
     }
   }
+
+  HybridEncryptWrapper() {}
 
   @Override
   public HybridEncrypt wrap(final PrimitiveSet<HybridEncrypt> primitives) {
@@ -68,6 +102,18 @@ class HybridEncryptWrapper implements PrimitiveWrapper<HybridEncrypt, HybridEncr
    * argument.
    */
   public static void register() throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new HybridEncryptWrapper());
+    MutablePrimitiveRegistry.globalInstance().registerPrimitiveWrapper(WRAPPER);
+    MutablePrimitiveRegistry.globalInstance()
+        .registerPrimitiveConstructor(LEGACY_PRIMITIVE_CONSTRUCTOR);
+  }
+
+  /**
+   * registerToInternalPrimitiveRegistry is a non-public method (it takes an argument of an
+   * internal-only type) registering an instance of {@code HybridEncryptWrapper} to the provided
+   * {@code PrimitiveRegistry.Builder}.
+   */
+  public static void registerToInternalPrimitiveRegistry(
+      PrimitiveRegistry.Builder primitiveRegistryBuilder) throws GeneralSecurityException {
+    primitiveRegistryBuilder.registerPrimitiveWrapper(WRAPPER);
   }
 }

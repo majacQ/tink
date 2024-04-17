@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package subtle
 
@@ -23,6 +21,7 @@ import (
 	"fmt"
 	"math"
 
+	// Placeholder for internal crypto/cipher allowlist, please ignore.
 	// Placeholder for internal crypto/subtle allowlist, please ignore. // to allow import of "crypto/subte"
 	"github.com/google/tink/go/subtle/random"
 )
@@ -45,13 +44,9 @@ const (
 	aesgcmsivPolyvalSize = aesgcmsivBlockSize
 )
 
-// AESGCMSIVKeySizes is an array of byte lengths of keys acceptable by the
-// AES-GCM-SIV algorithm.
-var AESGCMSIVKeySizes = [...]uint32{16, 32}
-
 // AESGCMSIV is an implementation of AEAD interface.
 type AESGCMSIV struct {
-	Key []byte
+	key []byte
 }
 
 // NewAESGCMSIV returns an AESGCMSIV instance.
@@ -62,21 +57,21 @@ func NewAESGCMSIV(key []byte) (*AESGCMSIV, error) {
 	if err := ValidateAESKeySize(keySize); err != nil {
 		return nil, fmt.Errorf("aes_gcm_siv: %s", err)
 	}
-	return &AESGCMSIV{Key: key}, nil
+	return &AESGCMSIV{key: key}, nil
 }
 
-// Encrypt encrypts pt with aad as additional authenticated data.
+// Encrypt encrypts plaintext with associatedData.
 //
 // The resulting ciphertext consists of three parts:
 // (1) the Nonce used for encryption
 // (2) the actual ciphertext
 // (3) the authentication tag.
-func (a *AESGCMSIV) Encrypt(pt, aad []byte) ([]byte, error) {
-	if len(pt) > math.MaxInt32-AESGCMSIVNonceSize-aesgcmsivTagSize {
+func (a *AESGCMSIV) Encrypt(plaintext, associatedData []byte) ([]byte, error) {
+	if len(plaintext) > math.MaxInt32-AESGCMSIVNonceSize-aesgcmsivTagSize {
 		return nil, fmt.Errorf("aes_gcm_siv: plaintext too long")
 	}
-	if len(aad) > math.MaxInt32 {
-		return nil, fmt.Errorf("aes_gcm_siv: additional-data too long")
+	if len(associatedData) > math.MaxInt32 {
+		return nil, fmt.Errorf("aes_gcm_siv: associatedData too long")
 	}
 
 	nonce := random.GetRandomBytes(uint32(AESGCMSIVNonceSize))
@@ -85,7 +80,7 @@ func (a *AESGCMSIV) Encrypt(pt, aad []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	polyval, err := a.computePolyval(authKey, pt, aad)
+	polyval, err := a.computePolyval(authKey, plaintext, associatedData)
 	if err != nil {
 		return nil, err
 	}
@@ -94,12 +89,12 @@ func (a *AESGCMSIV) Encrypt(pt, aad []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	ct, err := a.aesCTR(encKey, tag, pt)
+	ct, err := a.aesCTR(encKey, tag, plaintext)
 	if err != nil {
 		return nil, err
 	}
 
-	ret := make([]byte, 0, AESGCMSIVNonceSize+aesgcmsivTagSize+len(pt))
+	ret := make([]byte, 0, AESGCMSIVNonceSize+aesgcmsivTagSize+len(plaintext))
 	ret = append(ret, nonce...)
 	ret = append(ret, ct...)
 	ret = append(ret, tag...)
@@ -107,33 +102,33 @@ func (a *AESGCMSIV) Encrypt(pt, aad []byte) ([]byte, error) {
 	return ret, nil
 }
 
-// Decrypt decrypts ct with aad as the additional-authenticated-data.
-func (a *AESGCMSIV) Decrypt(ct, aad []byte) ([]byte, error) {
-	if len(ct) < AESGCMSIVNonceSize+aesgcmsivTagSize {
+// Decrypt decrypts ciphertext with associatedData.
+func (a *AESGCMSIV) Decrypt(ciphertext, associatedData []byte) ([]byte, error) {
+	if len(ciphertext) < AESGCMSIVNonceSize+aesgcmsivTagSize {
 		return nil, fmt.Errorf("aes_gcm_siv: ciphertext too short")
 	}
-	if len(ct) > math.MaxInt32 {
+	if len(ciphertext) > math.MaxInt32 {
 		return nil, fmt.Errorf("aes_gcm_siv: ciphertext too long")
 	}
-	if len(aad) > math.MaxInt32 {
-		return nil, fmt.Errorf("aes_gcm_siv: additional-data too long")
+	if len(associatedData) > math.MaxInt32 {
+		return nil, fmt.Errorf("aes_gcm_siv: associatedData too long")
 	}
 
-	nonce := ct[:AESGCMSIVNonceSize]
-	tag := ct[len(ct)-aesgcmsivTagSize:]
-	ct = ct[AESGCMSIVNonceSize : len(ct)-aesgcmsivTagSize]
+	nonce := ciphertext[:AESGCMSIVNonceSize]
+	tag := ciphertext[len(ciphertext)-aesgcmsivTagSize:]
+	ciphertext = ciphertext[AESGCMSIVNonceSize : len(ciphertext)-aesgcmsivTagSize]
 
 	authKey, encKey, err := a.deriveKeys(nonce)
 	if err != nil {
 		return nil, err
 	}
 
-	pt, err := a.aesCTR(encKey, tag, ct)
+	pt, err := a.aesCTR(encKey, tag, ciphertext)
 	if err != nil {
 		return nil, err
 	}
 
-	polyval, err := a.computePolyval(authKey, pt, aad)
+	polyval, err := a.computePolyval(authKey, pt, associatedData)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +153,7 @@ func (a *AESGCMSIV) deriveKeys(nonce []byte) ([]byte, []byte, error) {
 	}
 	nonceBlock := make([]byte, aesgcmsivBlockSize)
 	copy(nonceBlock[aesgcmsivBlockSize-AESGCMSIVNonceSize:], nonce)
-	block, err := aes.NewCipher(a.Key)
+	block, err := aes.NewCipher(a.key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("aes_gcm_siv: failed to create block cipher, error: %v", err)
 	}
@@ -174,11 +169,11 @@ func (a *AESGCMSIV) deriveKeys(nonce []byte) ([]byte, []byte, error) {
 	kdfAes(0, authKey[0:8])
 	kdfAes(1, authKey[8:16])
 
-	encKey := make([]byte, len(a.Key))
+	encKey := make([]byte, len(a.key))
 	kdfAes(2, encKey[0:8])
 	kdfAes(3, encKey[8:16])
 
-	if len(a.Key) == 32 {
+	if len(a.key) == 32 {
 		kdfAes(4, encKey[16:24])
 		kdfAes(5, encKey[24:32])
 	}
@@ -186,9 +181,9 @@ func (a *AESGCMSIV) deriveKeys(nonce []byte) ([]byte, []byte, error) {
 	return authKey, encKey, nil
 }
 
-func (a *AESGCMSIV) computePolyval(authKey, pt, aad []byte) ([]byte, error) {
+func (a *AESGCMSIV) computePolyval(authKey, pt, ad []byte) ([]byte, error) {
 	lengthBlock := make([]byte, aesgcmsivBlockSize)
-	binary.LittleEndian.PutUint64(lengthBlock[:8], uint64(len(aad))*8)
+	binary.LittleEndian.PutUint64(lengthBlock[:8], uint64(len(ad))*8)
 	binary.LittleEndian.PutUint64(lengthBlock[8:], uint64(len(pt))*8)
 
 	p, err := NewPolyval(authKey)
@@ -196,7 +191,7 @@ func (a *AESGCMSIV) computePolyval(authKey, pt, aad []byte) ([]byte, error) {
 		return nil, fmt.Errorf("aes_gcm_siv: failed to create polyval, error: %v", err)
 	}
 
-	p.Update(aad)
+	p.Update(ad)
 	p.Update(pt)
 	p.Update(lengthBlock)
 	polyval := p.Finish()

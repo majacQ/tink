@@ -14,7 +14,13 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 #include "tink/key_manager.h"
+
+#include <memory>
+
 #include "absl/memory/memory.h"
+#include "absl/strings/string_view.h"
+#include "tink/util/status.h"
+#include "tink/util/statusor.h"
 
 namespace crypto {
 namespace tink {

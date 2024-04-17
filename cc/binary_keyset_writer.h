@@ -17,7 +17,9 @@
 #ifndef TINK_BINARY_KEYSET_WRITER_H_
 #define TINK_BINARY_KEYSET_WRITER_H_
 
+#include <memory>
 #include <ostream>
+#include <utility>
 
 #include "absl/strings/string_view.h"
 #include "tink/keyset_writer.h"
@@ -37,7 +39,7 @@ class BinaryKeysetWriter : public KeysetWriter {
       std::unique_ptr<std::ostream> destination_stream);
 
   crypto::tink::util::Status
-  Write(const google::crypto::tink::Keyset& keyset) override;;
+  Write(const google::crypto::tink::Keyset& keyset) override;
 
   crypto::tink::util::Status
   Write(const google::crypto::tink::EncryptedKeyset& encrypted_keyset) override;

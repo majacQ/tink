@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package prf
 
@@ -20,7 +18,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/prf/subtle"
 	"github.com/google/tink/go/subtle/random"
@@ -39,13 +37,8 @@ var errInvalidAESCMACPRFKeyFormat = errors.New("aes_cmac_prf_key_manager: invali
 // aescmacprfKeyManager generates new AES-CMAC keys and produces new instances of AES-CMAC.
 type aescmacprfKeyManager struct{}
 
-// newAESCMACPRFKeyManager returns a new aescmacprfKeyManager.
-func newAESCMACPRFKeyManager() *aescmacprfKeyManager {
-	return new(aescmacprfKeyManager)
-}
-
 // Primitive constructs a AES-CMAC instance for the given serialized AESCMACPRFKey.
-func (km *aescmacprfKeyManager) Primitive(serializedKey []byte) (interface{}, error) {
+func (km *aescmacprfKeyManager) Primitive(serializedKey []byte) (any, error) {
 	if len(serializedKey) == 0 {
 		return nil, errInvalidAESCMACPRFKey
 	}

@@ -1,4 +1,4 @@
-# Copyright 2019 Google LLC.
+# Copyright 2019 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,6 @@
 # limitations under the License.
 
 """Tests for tink.python.tink._keyset_writer."""
-
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
 
 import io
 
@@ -70,7 +65,10 @@ class JsonKeysetWriterTest(absltest.TestCase):
     writer = tink.JsonKeysetWriter(stream)
     writer.write_encrypted(encrypted_keyset)
     reader = tink.JsonKeysetReader(stream.getvalue())
-    self.assertEqual(encrypted_keyset, reader.read_encrypted())
+    self.assertEqual(
+        encrypted_keyset.encrypted_keyset,
+        reader.read_encrypted().encrypted_keyset,
+    )
 
   def test_write_read_with_unicode_chars(self):
     keyset = tink_pb2.Keyset()
@@ -114,7 +112,10 @@ class BinaryKeysetReaderTest(absltest.TestCase):
     writer = tink.BinaryKeysetWriter(stream)
     writer.write_encrypted(encrypted_keyset)
     reader = tink.BinaryKeysetReader(stream.getvalue())
-    self.assertEqual(encrypted_keyset, reader.read_encrypted())
+    self.assertEqual(
+        encrypted_keyset.encrypted_keyset,
+        reader.read_encrypted().encrypted_keyset,
+    )
 
   def test_write_invalid_fails(self):
     stream = io.BytesIO()

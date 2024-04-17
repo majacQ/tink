@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package signature_test
 
@@ -20,67 +18,55 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/signature"
-	"github.com/google/tink/go/testutil"
 	tinkpb "github.com/google/tink/go/proto/tink_go_proto"
 )
 
 func TestKeyTemplates(t *testing.T) {
-	testutil.SkipTestIfTestSrcDirIsNotSet(t)
 	var testCases = []struct {
 		name     string
 		template *tinkpb.KeyTemplate
 	}{
 		{name: "ECDSA_P256",
 			template: signature.ECDSAP256KeyTemplate()},
-		{name: "ECDSA_P384",
-			template: signature.ECDSAP384KeyTemplate()},
+		{name: "ECDSA_P384_SHA384",
+			template: signature.ECDSAP384SHA384KeyTemplate()},
+		{name: "ECDSA_P384_SHA512",
+			template: signature.ECDSAP384SHA512KeyTemplate()},
 		{name: "ECDSA_P521",
 			template: signature.ECDSAP521KeyTemplate()},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			want, err := testutil.KeyTemplateProto("signature", tc.name)
-			if err != nil {
-				t.Fatalf("testutil.KeyTemplateProto('signature', tc.name) failed: %s", err)
-			}
-			if !proto.Equal(want, tc.template) {
-				t.Errorf("template %s is not equal to '%s'", tc.name, tc.template)
-			}
-			if err := testSignVerify(tc.template); err != nil {
-				t.Errorf("%v", err)
-			}
-		})
-	}
-}
-
-func TestKeyWithoutPrefixTemplates(t *testing.T) {
-	testutil.SkipTestIfTestSrcDirIsNotSet(t)
-	var testCases = []struct {
-		name     string
-		template *tinkpb.KeyTemplate
-	}{
-		{name: "ECDSA_P256",
+		{name: "ECDSA_P256_RAW",
+			template: signature.ECDSAP256RawKeyTemplate()},
+		{name: "ECDSA_P256_NO_PREFIX",
 			template: signature.ECDSAP256KeyWithoutPrefixTemplate()},
-		{name: "ECDSA_P384",
+		{name: "ECDSA_P384_NO_PREFIX",
 			template: signature.ECDSAP384KeyWithoutPrefixTemplate()},
-		{name: "ECDSA_P521",
+		{name: "ECDSA_P384_SHA384_NO_PREFIX",
+			template: signature.ECDSAP384SHA384KeyWithoutPrefixTemplate()},
+		{name: "ECDSA_P521_NO_PREFIX",
 			template: signature.ECDSAP521KeyWithoutPrefixTemplate()},
+		{name: "RSA_SSA_PKCS1_3072_SHA256_F4",
+			template: signature.RSA_SSA_PKCS1_3072_SHA256_F4_Key_Template()},
+		{name: "RSA_SSA_PKCS1_3072_SHA256_F4_RAW",
+			template: signature.RSA_SSA_PKCS1_3072_SHA256_F4_RAW_Key_Template()},
+		{name: "RSA_SSA_PKCS1_4096_SHA512_F4",
+			template: signature.RSA_SSA_PKCS1_4096_SHA512_F4_Key_Template()},
+		{name: "RSA_SSA_PKCS1_4096_SHA512_F4_RAW",
+			template: signature.RSA_SSA_PKCS1_4096_SHA512_F4_RAW_Key_Template()},
+		{name: "RSA_SSA_PSS_3072_SHA256_32_F4",
+			template: signature.RSA_SSA_PSS_3072_SHA256_32_F4_Key_Template()},
+		{name: "RSA_SSA_PSS_3072_SHA256_32_F4_RAW",
+			template: signature.RSA_SSA_PSS_3072_SHA256_32_F4_Raw_Key_Template()},
+		{name: "RSA_SSA_PSS_4096_SHA512_64_F4",
+			template: signature.RSA_SSA_PSS_4096_SHA512_64_F4_Key_Template()},
+		{name: "RSA_SSA_PSS_4096_SHA512_64_F4_RAW",
+			template: signature.RSA_SSA_PSS_4096_SHA512_64_F4_Raw_Key_Template()},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			want, err := testutil.KeyTemplateProto("signature", tc.name)
-			if err != nil {
-				t.Fatalf("testutil.KeyTemplateProto('signature', tc.name) failed: %s", err)
-			}
-			want.OutputPrefixType = tinkpb.OutputPrefixType_RAW
-			if !proto.Equal(want, tc.template) {
-				t.Errorf("template %s is not equal to '%s'", tc.name, tc.template)
-			}
 			if err := testSignVerify(tc.template); err != nil {
-				t.Errorf("%v", err)
+				t.Error(err)
 			}
 		})
 	}
@@ -91,7 +77,6 @@ func testSignVerify(template *tinkpb.KeyTemplate) error {
 	if err != nil {
 		return fmt.Errorf("keyset.NewHandle(tc.template) failed: %s", err)
 	}
-
 	signer, err := signature.NewSigner(privateHandle)
 	if err != nil {
 		return fmt.Errorf("signature.NewSigner(privateHandle) failed: %s", err)

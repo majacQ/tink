@@ -1,4 +1,4 @@
-# Copyright 2019 Google LLC.
+# Copyright 2019 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,26 +14,16 @@
 
 """Reads Keysets from file."""
 
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
-
 import abc
+import warnings
 
-from typing import Text
-# Special imports
-import six
-
-
-from tink.proto import tink_pb2
-from tink import core
 from google.protobuf import json_format
 from google.protobuf import message
+from tink.proto import tink_pb2
+from tink import core
 
 
-@six.add_metaclass(abc.ABCMeta)
-class KeysetReader(object):
+class KeysetReader(metaclass=abc.ABCMeta):
   """Reads a Keyset."""
 
   @abc.abstractmethod
@@ -47,10 +37,13 @@ class KeysetReader(object):
     raise NotImplementedError()
 
 
+# Deprecated. Instead, use the parse functions in
+# tink.json_proto_keyset_format.
 class JsonKeysetReader(KeysetReader):
   """Reads a JSON Keyset."""
 
-  def __init__(self, serialized_keyset: Text):
+  def __init__(self, serialized_keyset: str):
+    warnings.warn('JsonKeysetReader is deprecated.', DeprecationWarning, 2)
     self._serialized_keyset = serialized_keyset
 
   def read(self) -> tink_pb2.Keyset:
@@ -67,10 +60,12 @@ class JsonKeysetReader(KeysetReader):
       raise core.TinkError(e)
 
 
+# Deprecated. Instead, use the parse functions in tink.proto_keyset_format.
 class BinaryKeysetReader(KeysetReader):
   """Reads a binary Keyset."""
 
   def __init__(self, serialized_keyset: bytes):
+    warnings.warn('BinaryKeysetReader is deprecated.', DeprecationWarning, 2)
     self._serialized_keyset = serialized_keyset
 
   def read(self) -> tink_pb2.Keyset:

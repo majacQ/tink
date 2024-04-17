@@ -17,6 +17,8 @@
 #ifndef TINK_HYBRID_DECRYPT_H_
 #define TINK_HYBRID_DECRYPT_H_
 
+#include <string>
+
 #include "absl/strings/string_view.h"
 #include "tink/util/statusor.h"
 
@@ -59,7 +61,7 @@ class HybridDecrypt {
   virtual crypto::tink::util::StatusOr<std::string> Decrypt(
       absl::string_view ciphertext, absl::string_view context_info) const = 0;
 
-  virtual ~HybridDecrypt() {}
+  virtual ~HybridDecrypt() = default;
 };
 
 }  // namespace tink

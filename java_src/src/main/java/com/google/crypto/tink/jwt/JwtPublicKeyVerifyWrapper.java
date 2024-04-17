@@ -16,10 +16,9 @@
 
 package com.google.crypto.tink.jwt;
 
-import com.google.crypto.tink.PrimitiveSet;
 import com.google.crypto.tink.PrimitiveWrapper;
-import com.google.crypto.tink.Registry;
-import com.google.crypto.tink.proto.OutputPrefixType;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveSet;
 import com.google.errorprone.annotations.Immutable;
 import java.security.GeneralSecurityException;
 import java.util.List;
@@ -28,17 +27,7 @@ import java.util.List;
 class JwtPublicKeyVerifyWrapper
     implements PrimitiveWrapper<JwtPublicKeyVerify, JwtPublicKeyVerify> {
 
-  private static void validate(PrimitiveSet<JwtPublicKeyVerify> primitiveSet)
-      throws GeneralSecurityException {
-    for (List<PrimitiveSet.Entry<JwtPublicKeyVerify>> entries : primitiveSet.getAll()) {
-      for (PrimitiveSet.Entry<JwtPublicKeyVerify> entry : entries) {
-        if ((entry.getOutputPrefixType() != OutputPrefixType.RAW)
-            && (entry.getOutputPrefixType() != OutputPrefixType.TINK)) {
-          throw new GeneralSecurityException("unsupported OutputPrefixType");
-        }
-      }
-    }
-  }
+  private static final JwtPublicKeyVerifyWrapper WRAPPER = new JwtPublicKeyVerifyWrapper();
 
   @Immutable
   private static class WrappedJwtPublicKeyVerify implements JwtPublicKeyVerify {
@@ -57,7 +46,7 @@ class JwtPublicKeyVerifyWrapper
       for (List<PrimitiveSet.Entry<JwtPublicKeyVerify>> entries : primitives.getAll()) {
         for (PrimitiveSet.Entry<JwtPublicKeyVerify> entry : entries) {
           try {
-            return entry.getPrimitive().verifyAndDecode(compact, validator);
+            return entry.getFullPrimitive().verifyAndDecode(compact, validator);
           } catch (GeneralSecurityException e) {
             if (e instanceof JwtInvalidException) {
               // Keep this exception so that we are able to throw a meaningful message in the end
@@ -77,7 +66,6 @@ class JwtPublicKeyVerifyWrapper
   @Override
   public JwtPublicKeyVerify wrap(final PrimitiveSet<JwtPublicKeyVerify> primitives)
       throws GeneralSecurityException {
-    validate(primitives);
     return new WrappedJwtPublicKeyVerify(primitives);
   }
 
@@ -98,6 +86,6 @@ class JwtPublicKeyVerifyWrapper
    * argument.
    */
   public static void register() throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new JwtPublicKeyVerifyWrapper());
+    MutablePrimitiveRegistry.globalInstance().registerPrimitiveWrapper(WRAPPER);
   }
 }

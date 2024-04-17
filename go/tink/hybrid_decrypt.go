@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package tink
 
@@ -35,7 +33,7 @@ mechanisms to authenticate the sender.
 
 Security guarantees
 
-The functionality of Hybrid Encryption is represented as a pair of primitives (interfaces):
+The functionality of Hybrid Encryption is represented as a pair of interfaces:
 HybridEncrypt for encryption of data, and HybridDecrypt for decryption.
 Implementations of these interfaces are secure against adaptive chosen ciphertext attacks. In
 addition to plaintext the encryption takes an extra parameter contextInfo, which
@@ -58,9 +56,7 @@ the ciphertext in various ways, for example:
 
 */
 type HybridDecrypt interface {
-	/**
-	 * Decrypt operation: decrypts ciphertext verifying the integrity of contextInfo.
-	 * returns resulting plaintext
-	 */
+	// Decrypt operation: decrypts ciphertext, verifying the integrity of
+	// contextInfo.  Returns resulting plaintext.
 	Decrypt(ciphertext, contextInfo []byte) ([]byte, error)
 }

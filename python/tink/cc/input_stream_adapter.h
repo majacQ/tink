@@ -14,10 +14,12 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_PYTHON_CC_INPUT_STREAM_ADAPTER_H_
-#define TINK_PYTHON_CC_INPUT_STREAM_ADAPTER_H_
+#ifndef TINK_PYTHON_TINK_CC_INPUT_STREAM_ADAPTER_H_
+#define TINK_PYTHON_TINK_CC_INPUT_STREAM_ADAPTER_H_
 
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "tink/input_stream.h"
 #include "tink/util/statusor.h"
@@ -44,4 +46,4 @@ class InputStreamAdapter {
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_PYTHON_CC_INPUT_STREAM_ADAPTER_H_
+#endif  // TINK_PYTHON_TINK_CC_INPUT_STREAM_ADAPTER_H_

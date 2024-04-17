@@ -18,15 +18,17 @@
 #define TINK_SUBTLE_ECDSA_SIGN_BORINGSSL_H_
 
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "absl/strings/string_view.h"
+#include "openssl/evp.h"
 #include "tink/internal/fips_utils.h"
+#include "tink/public_key_sign.h"
+#include "tink/signature/internal/ecdsa_raw_sign_boringssl.h"
 #include "tink/subtle/common_enums.h"
 #include "tink/subtle/subtle_util_boringssl.h"
-#include "tink/public_key_sign.h"
 #include "tink/util/statusor.h"
-#include "openssl/ec.h"
-#include "openssl/evp.h"
 
 namespace crypto {
 namespace tink {
@@ -47,12 +49,13 @@ class EcdsaSignBoringSsl : public PublicKeySign {
       crypto::tink::internal::FipsCompatibility::kRequiresBoringCrypto;
 
  private:
-  EcdsaSignBoringSsl(bssl::UniquePtr<EC_KEY> key, const EVP_MD* hash,
-                     EcdsaSignatureEncoding encoding);
+  explicit EcdsaSignBoringSsl(
+      const EVP_MD* hash,
+      std::unique_ptr<internal::EcdsaRawSignBoringSsl> raw_signer)
+      : hash_(hash), raw_signer_(std::move(raw_signer)) {}
 
-  bssl::UniquePtr<EC_KEY> key_;
   const EVP_MD* hash_;  // Owned by BoringSSL.
-  EcdsaSignatureEncoding encoding_;
+  std::unique_ptr<internal::EcdsaRawSignBoringSsl> raw_signer_;
 };
 
 }  // namespace subtle

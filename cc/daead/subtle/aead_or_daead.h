@@ -18,10 +18,14 @@
 #define TINK_DAEAD_SUBTLE_AEAD_OR_DAEAD_H_
 
 #include <memory>
+#include <string>
+#include <utility>
 
+#include "absl/strings/string_view.h"
 #include "absl/types/variant.h"
 #include "tink/aead.h"
 #include "tink/deterministic_aead.h"
+#include "tink/util/statusor.h"
 
 namespace crypto {
 namespace tink {

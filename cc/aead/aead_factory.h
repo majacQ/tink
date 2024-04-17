@@ -17,7 +17,9 @@
 #ifndef TINK_AEAD_AEAD_FACTORY_H_
 #define TINK_AEAD_AEAD_FACTORY_H_
 
-#include "absl/base/macros.h"
+#include <memory>
+
+#include "absl/base/attributes.h"
 #include "tink/aead.h"
 #include "tink/key_manager.h"
 #include "tink/keyset_handle.h"
@@ -35,6 +37,8 @@ namespace tink {
 // * AeadConfig::Register()
 // * HybridConfig::Register()
 // * TinkConfig::Register()
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 class ABSL_DEPRECATED(
     "Call GetPrimitive<Aead>() on the keyset_handle after registering the "
     "AeadWrapper instead.") AeadFactory {
@@ -54,6 +58,8 @@ class ABSL_DEPRECATED(
  private:
   AeadFactory() {}
 };
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace tink
 }  // namespace crypto

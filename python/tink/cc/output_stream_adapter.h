@@ -14,10 +14,11 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_PYTHON_CC_OUTPUT_STREAM_ADAPTER_H_
-#define TINK_PYTHON_CC_OUTPUT_STREAM_ADAPTER_H_
+#ifndef TINK_PYTHON_TINK_CC_OUTPUT_STREAM_ADAPTER_H_
+#define TINK_PYTHON_TINK_CC_OUTPUT_STREAM_ADAPTER_H_
 
 #include <memory>
+#include <utility>
 
 #include "absl/strings/string_view.h"
 #include "tink/output_stream.h"
@@ -50,4 +51,4 @@ class OutputStreamAdapter {
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_PYTHON_CC_OUTPUT_STREAM_ADAPTER_H_
+#endif  // TINK_PYTHON_TINK_CC_OUTPUT_STREAM_ADAPTER_H_

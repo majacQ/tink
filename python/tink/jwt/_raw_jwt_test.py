@@ -14,8 +14,9 @@
 
 import datetime
 import json
+import sys
 
-from typing import cast, Dict, List, Text
+from typing import cast, Dict, List
 
 from absl.testing import absltest
 # from absl.testing import parameterized
@@ -94,6 +95,11 @@ class RawJwtTest(absltest.TestCase):
     self.assertTrue(token.has_jwt_id())
     self.assertEqual(token.jwt_id(), 'JWT ID')
 
+  def test_audience(self):
+    token = jwt.new_raw_jwt(audience='bob', without_expiration=True)
+    self.assertTrue(token.has_audiences())
+    self.assertEqual(token.audiences(), ['bob'])
+
   def test_audiences(self):
     token = jwt.new_raw_jwt(audiences=['bob', 'eve'], without_expiration=True)
     self.assertTrue(token.has_audiences())
@@ -101,7 +107,7 @@ class RawJwtTest(absltest.TestCase):
 
   def test_string_audiences(self):
     token = jwt.new_raw_jwt(
-        audiences=cast(List[Text], 'bob'), without_expiration=True)
+        audiences=cast(List[str], 'bob'), without_expiration=True)
     self.assertTrue(token.has_audiences())
     self.assertEqual(token.audiences(), ['bob'])
 
@@ -122,6 +128,11 @@ class RawJwtTest(absltest.TestCase):
         token.expiration(),
         datetime.datetime.fromtimestamp(123, datetime.timezone.utc))
 
+  @absltest.skipIf(
+      sys.platform.startswith('win32'),
+      'Windows does not allow `localtime` values after 23:59:59, December 31,'
+      ' 3000, UTC',
+  )
   def test_large_timestamps_success(self):
     # year 9999
     large = datetime.datetime.fromtimestamp(253402300799,
@@ -135,6 +146,11 @@ class RawJwtTest(absltest.TestCase):
     self.assertEqual(token.issued_at(), large)
     self.assertEqual(token.not_before(), large)
 
+  @absltest.skipIf(
+      sys.platform.startswith('win32'),
+      'Windows does not allow `localtime` values after 23:59:59, December 31,'
+      ' 3000, UTC',
+  )
   def test_too_large_timestamps_fail(self):
     with self.assertRaises(ValueError):
       datetime.datetime.fromtimestamp(253402300800, datetime.timezone.utc)
@@ -261,6 +277,10 @@ class RawJwtTest(absltest.TestCase):
             'object': {'one': {'two': 3}}
         })
 
+  def test_string_audience_payload(self):
+    token = jwt.new_raw_jwt(audience='bob', without_expiration=True)
+    self.assertEqual(json.loads(token.json_payload()), {'aud': 'bob'})
+
   def test_from_to_payload(self):
     payload = {
         'iss': 'Issuer',
@@ -277,8 +297,14 @@ class RawJwtTest(absltest.TestCase):
         'array': [1, None, 'Bob', 2.2, {'foo': 'bar'}],
         'object': {'one': {'two': 3}}
     }
-    token = jwt.RawJwt.from_json(None, json.dumps(payload))
+    token = jwt.RawJwt._from_json(None, json.dumps(payload))
     self.assertEqual(json.loads(token.json_payload()), payload)
+
+  def test_integer_is_encoded_as_integer(self):
+    token = jwt.new_raw_jwt(
+        without_expiration=True,
+        custom_claims={'num': 1})
+    self.assertEqual(token.json_payload(), '{"num":1}')
 
   def test_exp_to_payload(self):
     expiration = datetime.datetime.fromtimestamp(2218027244,
@@ -291,12 +317,24 @@ class RawJwtTest(absltest.TestCase):
     token = jwt.new_raw_jwt(expiration=expiration)
     self.assertEqual(token.json_payload(), '{"exp":123}')
 
-  def test_from_to_payload_with_string_audience(self):
+  def test_from_to_payload_with_string_audience_perserves_string(self):
     payload = {
         'iss': 'Issuer',
         'aud': 'bob',
     }
-    token = jwt.RawJwt.from_json(None, json.dumps(payload))
+    token = jwt.RawJwt._from_json(None, json.dumps(payload))
+    expected = {
+        'iss': 'Issuer',
+        'aud': 'bob',
+    }
+    self.assertEqual(json.loads(token.json_payload()), expected)
+
+  def test_from_to_payload_with_list_audience_perserves_list(self):
+    payload = {
+        'iss': 'Issuer',
+        'aud': ['bob'],
+    }
+    token = jwt.RawJwt._from_json(None, json.dumps(payload))
     expected = {
         'iss': 'Issuer',
         'aud': ['bob'],
@@ -305,61 +343,69 @@ class RawJwtTest(absltest.TestCase):
 
   def test_from_payload_with_wrong_issuer_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"iss":123}')
+      jwt.RawJwt._from_json(None, '{"iss":123}')
 
   def test_from_payload_with_wrong_subject_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"sub":123}')
+      jwt.RawJwt._from_json(None, '{"sub":123}')
 
   def test_from_payload_with_wrong_jwt_id_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"jti":123}')
+      jwt.RawJwt._from_json(None, '{"jti":123}')
 
   def test_from_payload_with_wrong_expiration_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"exp":"123"}')
+      jwt.RawJwt._from_json(None, '{"exp":"123"}')
 
   def test_from_payload_with_wrong_issued_at_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"iat":"123"}')
+      jwt.RawJwt._from_json(None, '{"iat":"123"}')
 
   def test_from_payload_with_wrong_not_before_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"nbf":"123"}')
+      jwt.RawJwt._from_json(None, '{"nbf":"123"}')
 
   def test_from_payload_with_exp_expiration_success(self):
-    token = jwt.RawJwt.from_json(None, '{"exp":1e10}')
+    token = jwt.RawJwt._from_json(None, '{"exp":1e10}')
     self.assertEqual(
         token.expiration(),
         datetime.datetime.fromtimestamp(10000000000, datetime.timezone.utc))
 
   def test_from_payload_with_large_expiration_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"exp":1e30}')
+      jwt.RawJwt._from_json(None, '{"exp":1e30}')
 
   def test_from_payload_with_negative_expiration_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"exp":-1}')
+      jwt.RawJwt._from_json(None, '{"exp":-1}')
 
   def test_from_payload_with_infinity_expiration_fails(self):
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, '{"exp":Infinity}')
+      jwt.RawJwt._from_json(None, '{"exp":Infinity}')
 
   def test_from_payload_with_utf16_surrogate(self):
     # the json string contains "\uD834\uDD1E", which the JSON decoder decodes to
     # the G clef character (U+1D11E).
-    token = jwt.RawJwt.from_json(None, u'{"iss":"\\uD834\\uDD1E"}')
+    token = jwt.RawJwt._from_json(None, u'{"iss":"\\uD834\\uDD1E"}')
     self.assertEqual(token.issuer(), u'\U0001d11e')
 
   def test_from_payload_with_invalid_utf16(self):
     # the json string contains "\uD834", which gets decoded by the json decoder
     # into an invalid UTF16 character.
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, u'{"iss":"\\uD834"}')
+      jwt.RawJwt._from_json(None, u'{"iss":"\\uD834"}')
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, u'{"\\uD834":"issuer"}')
+      jwt.RawJwt._from_json(None, u'{"\\uD834":"issuer"}')
     with self.assertRaises(jwt.JwtInvalidError):
-      jwt.RawJwt.from_json(None, u'{"a":{"a":{"a":"\\uD834"}}}')
+      jwt.RawJwt._from_json(None, u'{"a":{"a":{"a":"\\uD834"}}}')
+
+  def test_from_payload_with_duplicate_map_keys_fails(self):
+    with self.assertRaises(jwt.JwtInvalidError):
+      jwt.RawJwt._from_json(None, '{"claim": "claim1", "claim": "claim2"}')
+    with self.assertRaises(jwt.JwtInvalidError):
+      jwt.RawJwt._from_json(None, '{"nested": {"a: "a1", "a": "a2"}}')
+    # this is fine, since the two 'a' keys are not in the same map
+    _ = jwt.RawJwt._from_json(None, '{"a": "a1", "b": {"a": "a2"}}')
 
   def test_modification(self):
     audiences = ['alice', 'bob']
@@ -375,8 +421,8 @@ class RawJwtTest(absltest.TestCase):
     audiences.append('eve')
     custom_claims['new_claim'] = 456
     my_claim['three'] = 4
-    output_claim = cast(Dict[Text, Text], token.custom_claim('my_claim'))
-    output_claim['three'] = 4
+    output_claim = cast(Dict[str, str], token.custom_claim('my_claim'))
+    output_claim['three'] = 4  # pytype: disable=container-type-mismatch
 
     # modifications don't affect token.
     self.assertEqual(token.audiences(), ['alice', 'bob'])

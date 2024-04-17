@@ -16,18 +16,25 @@
 #ifndef TINK_AEAD_KMS_ENVELOPE_AEAD_KEY_MANAGER_H_
 #define TINK_AEAD_KMS_ENVELOPE_AEAD_KEY_MANAGER_H_
 
+#include <stdint.h>
+
+#include <memory>
 #include <string>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "tink/aead.h"
+#include "tink/aead/internal/aead_util.h"
 #include "tink/core/key_type_manager.h"
-#include "tink/key_manager.h"
+#include "tink/core/template_util.h"
+#include "tink/internal/fips_utils.h"
 #include "tink/util/constants.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "tink/util/validation.h"
 #include "proto/kms_envelope.pb.h"
+#include "proto/tink.pb.h"
 
 namespace crypto {
 namespace tink {
@@ -66,8 +73,13 @@ class KmsEnvelopeAeadKeyManager
       const google::crypto::tink::KmsEnvelopeAeadKeyFormat& format)
       const override {
     if (format.kek_uri().empty()) {
-      return crypto::tink::util::Status(util::error::INVALID_ARGUMENT,
+      return crypto::tink::util::Status(absl::StatusCode::kInvalidArgument,
                                         "Missing kek_uri.");
+    }
+    if (!internal::IsSupportedKmsEnvelopeAeadDekKeyType(
+            format.dek_template().type_url())) {
+      return util::Status(absl::StatusCode::kInvalidArgument,
+                          "unsupported dek key type");
     }
     return util::OkStatus();
   }

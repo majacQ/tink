@@ -16,15 +16,22 @@
 
 #include "tink/util/ostream_output_stream.h"
 
+#include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <ostream>
+#include <string>
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "tink/internal/test_file_util.h"
 #include "tink/subtle/random.h"
+#include "tink/util/status.h"
 #include "tink/util/test_util.h"
 
 namespace crypto {
@@ -53,7 +60,7 @@ util::Status WriteToStream(util::OstreamOutputStream* output_stream,
   while (remaining > 0) {
     auto next_result = output_stream->Next(&buffer);
     if (!next_result.ok()) return next_result.status();
-    available_space = next_result.ValueOrDie();
+    available_space = next_result.value();
     available_bytes = std::min(available_space, remaining);
     memcpy(buffer, contents.data() + pos, available_bytes);
     remaining -= available_bytes;
@@ -72,7 +79,8 @@ TEST_F(OstreamOutputStreamTest, WritingStreams) {
   for (size_t stream_size : {0, 10, 100, 1000, 10000, 100000, 1000000}) {
     SCOPED_TRACE(absl::StrCat("stream_size = ", stream_size));
     std::string stream_contents = subtle::Random::GetRandomBytes(stream_size);
-    std::string filename = absl::StrCat(stream_size, "_writing_test.bin");
+    std::string filename = absl::StrCat(
+        stream_size, internal::GetTestFileNamePrefix(), "_file.bin");
     auto output = GetTestOstream(filename);
     auto output_stream = absl::make_unique<util::OstreamOutputStream>(
         std::move(output));
@@ -89,14 +97,15 @@ TEST_F(OstreamOutputStreamTest, CustomBufferSizes) {
   std::string stream_contents = subtle::Random::GetRandomBytes(stream_size);
   for (int buffer_size : {1, 10, 100, 1000, 10000, 100000, 1000000}) {
     SCOPED_TRACE(absl::StrCat("buffer_size = ", buffer_size));
-    std::string filename = absl::StrCat(buffer_size, "_buffer_size_test.bin");
+    std::string filename = absl::StrCat(
+        buffer_size, internal::GetTestFileNamePrefix(), "_file.bin");
     auto output = GetTestOstream(filename);
     auto output_stream = absl::make_unique<util::OstreamOutputStream>(
         std::move(output), buffer_size);
     void* buffer;
     auto next_result = output_stream->Next(&buffer);
     EXPECT_TRUE(next_result.ok()) << next_result.status();
-    EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+    EXPECT_EQ(buffer_size, next_result.value());
     output_stream->BackUp(buffer_size);
     auto status = WriteToStream(output_stream.get(), stream_contents);
     EXPECT_TRUE(status.ok()) << status;
@@ -111,7 +120,8 @@ TEST_F(OstreamOutputStreamTest, BackupAndPosition) {
   int buffer_size = 1234;
   void* buffer;
   std::string stream_contents = subtle::Random::GetRandomBytes(stream_size);
-  std::string filename = absl::StrCat(buffer_size, "_backup_test.bin");
+  std::string filename =
+      absl::StrCat(buffer_size, internal::GetTestFileNamePrefix(), "_file.bin");
   auto output = GetTestOstream(filename);
 
   // Prepare the stream and do the first call to Next().
@@ -120,7 +130,7 @@ TEST_F(OstreamOutputStreamTest, BackupAndPosition) {
   EXPECT_EQ(0, output_stream->Position());
   auto next_result = output_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(buffer_size, output_stream->Position());
   std::memcpy(buffer, stream_contents.data(), buffer_size);
 
@@ -132,7 +142,7 @@ TEST_F(OstreamOutputStreamTest, BackupAndPosition) {
     total_backup_size += std::max(backup_size, 0);
     EXPECT_EQ(buffer_size - total_backup_size, output_stream->Position());
   }
-  EXPECT_LT(total_backup_size, next_result.ValueOrDie());
+  EXPECT_LT(total_backup_size, next_result.value());
 
   // Call Next(), it should succeed.
   next_result = output_stream->Next(&buffer);
@@ -146,7 +156,7 @@ TEST_F(OstreamOutputStreamTest, BackupAndPosition) {
     total_backup_size += std::max(0, backup_size);
     EXPECT_EQ(buffer_size - total_backup_size, output_stream->Position());
   }
-  EXPECT_LT(total_backup_size, next_result.ValueOrDie());
+  EXPECT_LT(total_backup_size, next_result.value());
 
   // Call Next(), it should succeed;
   next_result = output_stream->Next(&buffer);
@@ -156,7 +166,7 @@ TEST_F(OstreamOutputStreamTest, BackupAndPosition) {
   auto prev_position = output_stream->Position();
   next_result = output_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(prev_position + buffer_size, output_stream->Position());
   std::memcpy(buffer, stream_contents.data() + buffer_size, buffer_size);
 
@@ -177,7 +187,7 @@ TEST_F(OstreamOutputStreamTest, BackupAndPosition) {
   // Call Next() again, it should return a full block.
   next_result = output_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(prev_position + buffer_size, output_stream->Position());
   std::memcpy(buffer, stream_contents.data() + buffer_size, buffer_size);
 

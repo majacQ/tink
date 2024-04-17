@@ -17,11 +17,17 @@
 #include "tink/subtle/streaming_aead_encrypting_stream.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "tink/output_stream.h"
 #include "tink/subtle/stream_segment_encrypter.h"
+#include "tink/util/status.h"
 #include "tink/util/statusor.h"
 
 using crypto::tink::OutputStream;
@@ -48,7 +54,7 @@ util::Status WriteToStream(const std::vector<uint8_t>& contents,
   while (remaining > 0) {
     auto next_result = output_stream->Next(&buffer);
     if (!next_result.ok()) return next_result.status();
-    available_space = next_result.ValueOrDie();
+    available_space = next_result.value();
     available_bytes = std::min(available_space, remaining);
     memcpy(buffer, contents.data() + pos, available_bytes);
     remaining -= available_bytes;
@@ -57,7 +63,7 @@ util::Status WriteToStream(const std::vector<uint8_t>& contents,
   if (available_space > available_bytes) {
     output_stream->BackUp(available_space - available_bytes);
   }
-  return Status::OK;
+  return util::OkStatus();
 }
 
 }  // anonymous namespace
@@ -67,11 +73,11 @@ StatusOr<std::unique_ptr<OutputStream>> StreamingAeadEncryptingStream::New(
     std::unique_ptr<StreamSegmentEncrypter> segment_encrypter,
     std::unique_ptr<OutputStream> ciphertext_destination) {
   if (segment_encrypter == nullptr) {
-    return Status(util::error::INVALID_ARGUMENT,
+    return Status(absl::StatusCode::kInvalidArgument,
                   "segment_encrypter must be non-null");
   }
   if (ciphertext_destination == nullptr) {
-    return Status(util::error::INVALID_ARGUMENT,
+    return Status(absl::StatusCode::kInvalidArgument,
                   "cipertext_destination must be non-null");
   }
   std::unique_ptr<StreamingAeadEncryptingStream> enc_stream(
@@ -84,7 +90,7 @@ StatusOr<std::unique_ptr<OutputStream>> StreamingAeadEncryptingStream::New(
       enc_stream->segment_encrypter_->get_header().size();
 
   if (first_segment_size <= 0) {
-    return Status(util::error::INTERNAL,
+    return Status(absl::StatusCode::kInternal,
                   "Size of the first segment must be greater than 0.");
   }
   enc_stream->pt_buffer_.resize(first_segment_size);
@@ -93,7 +99,7 @@ StatusOr<std::unique_ptr<OutputStream>> StreamingAeadEncryptingStream::New(
   enc_stream->is_first_segment_ = true;
   enc_stream->count_backedup_ = first_segment_size;
   enc_stream->pt_buffer_offset_ = 0;
-  enc_stream->status_ = Status::OK;
+  enc_stream->status_ = util::OkStatus();
   return {std::move(enc_stream)};
 }
 
@@ -198,7 +204,7 @@ Status StreamingAeadEncryptingStream::Close() {
     ct_destination_->Close().IgnoreError();
     return status_;
   }
-  status_ = Status(util::error::FAILED_PRECONDITION, "Stream closed");
+  status_ = Status(absl::StatusCode::kFailedPrecondition, "Stream closed");
   return ct_destination_->Close();
 }
 

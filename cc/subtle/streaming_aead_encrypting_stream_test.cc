@@ -16,16 +16,22 @@
 
 #include "tink/subtle/streaming_aead_encrypting_stream.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <memory>
 #include <sstream>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "tink/output_stream.h"
-#include "tink/subtle/stream_segment_encrypter.h"
 #include "tink/subtle/random.h"
+#include "tink/subtle/stream_segment_encrypter.h"
 #include "tink/subtle/test_util.h"
 #include "tink/util/ostream_output_stream.h"
 #include "tink/util/status.h"
@@ -63,7 +69,8 @@ std::unique_ptr<OutputStream> GetEncryptingStream(
   // A reference to the segment encrypter, for later validation.
   refs->seg_enc = seg_enc.get();
   auto enc_stream = std::move(StreamingAeadEncryptingStream::New(
-      std::move(seg_enc), std::move(ct_destination)).ValueOrDie());
+                                  std::move(seg_enc), std::move(ct_destination))
+                                  .value());
   EXPECT_EQ(0, enc_stream->Position());
   return enc_stream;
 }
@@ -94,7 +101,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, WritingStreams) {
           void* buffer;
           auto next_result = enc_stream->Next(&buffer);
           EXPECT_TRUE(next_result.ok()) << next_result.status();
-          int buffer_size = next_result.ValueOrDie();
+          int buffer_size = next_result.value();
           EXPECT_EQ(pt_segment_size - (header_size + ct_offset), buffer_size);
           EXPECT_EQ(buffer_size, enc_stream->Position());
 
@@ -116,7 +123,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, WritingStreams) {
           // Try closing the stream again.
           status = enc_stream->Close();
           EXPECT_FALSE(status.ok());
-          EXPECT_EQ(util::error::FAILED_PRECONDITION, status.error_code());
+          EXPECT_EQ(absl::StatusCode::kFailedPrecondition, status.code());
         }
       }
     }
@@ -147,7 +154,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, EmptyPlaintext) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 TEST_F(StreamingAeadEncryptingStreamTest, EmptyPlaintextWithBackup) {
@@ -164,7 +171,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, EmptyPlaintextWithBackup) {
   auto next_result = enc_stream->Next(&buffer);
   int buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(buffer_size, enc_stream->Position());
 
   // Backup the entire segment, and close the stream.
@@ -184,7 +191,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, EmptyPlaintextWithBackup) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 TEST_F(StreamingAeadEncryptingStreamTest, OneSegmentPlaintext) {
@@ -201,7 +208,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, OneSegmentPlaintext) {
   auto next_result = enc_stream->Next(&buffer);
   int buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(buffer_size, enc_stream->Position());
   auto close_status = enc_stream->Close();
   EXPECT_TRUE(close_status.ok()) << close_status;
@@ -217,7 +224,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, OneSegmentPlaintext) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 TEST_F(StreamingAeadEncryptingStreamTest, NextAfterBackup) {
@@ -236,7 +243,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, NextAfterBackup) {
   auto next_result = enc_stream->Next(&buffer);
   int buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(buffer_size, enc_stream->Position());
 
   // Backup so that only part1_size bytes are written.
@@ -247,7 +254,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, NextAfterBackup) {
   void* backedup_buffer;
   next_result = enc_stream->Next(&backedup_buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size - part1_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size - part1_size, next_result.value());
   EXPECT_EQ(reinterpret_cast<uint8_t*>(buffer) + part1_size,
             reinterpret_cast<uint8_t*>(backedup_buffer));
 
@@ -258,7 +265,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, NextAfterBackup) {
   // Get backed up space again.
   next_result = enc_stream->Next(&backedup_buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size - (part1_size + part2_size), next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size - (part1_size + part2_size), next_result.value());
   EXPECT_EQ(reinterpret_cast<uint8_t*>(buffer) + part1_size + part2_size,
             reinterpret_cast<uint8_t*>(backedup_buffer));
 
@@ -282,7 +289,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, OneSegmentPlaintextWithBackup) {
   auto next_result = enc_stream->Next(&buffer);
   int buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(buffer_size, enc_stream->Position());
 
   // Backup so that only pt_size bytes are written, and close the stream.
@@ -303,7 +310,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, OneSegmentPlaintextWithBackup) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintext) {
@@ -321,14 +328,14 @@ TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintext) {
   auto next_result = enc_stream->Next(&buffer);
   int first_buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(first_buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(first_buffer_size, next_result.value());
   EXPECT_EQ(first_buffer_size, enc_stream->Position());
 
   // Get remaining segments.
   for (int i = 1; i < seg_count; i++) {
     next_result = enc_stream->Next(&buffer);
     EXPECT_TRUE(next_result.ok()) << next_result.status();
-    EXPECT_EQ(pt_segment_size, next_result.ValueOrDie());
+    EXPECT_EQ(pt_segment_size, next_result.value());
     EXPECT_EQ(first_buffer_size + i * pt_segment_size, enc_stream->Position());
   }
 
@@ -354,7 +361,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintext) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintextWithBackup) {
@@ -373,14 +380,14 @@ TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintextWithBackup) {
   auto next_result = enc_stream->Next(&buffer);
   int first_buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(first_buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(first_buffer_size, next_result.value());
   EXPECT_EQ(first_buffer_size, enc_stream->Position());
 
   // Get remaining segments.
   for (int i = 1; i < seg_count; i++) {
     next_result = enc_stream->Next(&buffer);
     EXPECT_TRUE(next_result.ok()) << next_result.status();
-    EXPECT_EQ(pt_segment_size, next_result.ValueOrDie());
+    EXPECT_EQ(pt_segment_size, next_result.value());
     EXPECT_EQ(first_buffer_size + i * pt_segment_size, enc_stream->Position());
   }
   // Backup part of the last segment, and close the stream.
@@ -409,7 +416,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintextWithBackup) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintextWithFullBackup) {
@@ -427,14 +434,14 @@ TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintextWithFullBackup) {
   auto next_result = enc_stream->Next(&buffer);
   int first_buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(first_buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(first_buffer_size, next_result.value());
   EXPECT_EQ(first_buffer_size, enc_stream->Position());
 
   // Get remaining segments.
   for (int i = 1; i < seg_count; i++) {
     next_result = enc_stream->Next(&buffer);
     EXPECT_TRUE(next_result.ok()) << next_result.status();
-    EXPECT_EQ(pt_segment_size, next_result.ValueOrDie());
+    EXPECT_EQ(pt_segment_size, next_result.value());
     EXPECT_EQ(first_buffer_size + i * pt_segment_size, enc_stream->Position());
   }
   // Backup the entire last segment, and close the stream.
@@ -462,7 +469,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, ManySegmentsPlaintextWithFullBackup) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 TEST_F(StreamingAeadEncryptingStreamTest, BackupAndPosition) {
@@ -479,7 +486,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, BackupAndPosition) {
   auto next_result = enc_stream->Next(&buffer);
   int buffer_size = pt_segment_size - header_size;
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(buffer_size, enc_stream->Position());
 
   // BackUp several times, but in total fewer bytes than returned by Next().
@@ -490,12 +497,12 @@ TEST_F(StreamingAeadEncryptingStreamTest, BackupAndPosition) {
     total_backup_size += std::max(0, backup_size);
     EXPECT_EQ(buffer_size - total_backup_size, enc_stream->Position());
   }
-  EXPECT_LT(total_backup_size, next_result.ValueOrDie());
+  EXPECT_LT(total_backup_size, next_result.value());
 
   // Call Next(), it should succeed (backuped bytes of 1st segment).
   next_result = enc_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(total_backup_size, next_result.ValueOrDie());
+  EXPECT_EQ(total_backup_size, next_result.value());
   EXPECT_EQ(buffer_size, enc_stream->Position());
 
   // BackUp() some bytes, again fewer than returned by Next().
@@ -506,12 +513,12 @@ TEST_F(StreamingAeadEncryptingStreamTest, BackupAndPosition) {
     total_backup_size += std::max(0, backup_size);
     EXPECT_EQ(buffer_size - total_backup_size, enc_stream->Position());
   }
-  EXPECT_LT(total_backup_size, next_result.ValueOrDie());
+  EXPECT_LT(total_backup_size, next_result.value());
 
   // Call Next(), it should succeed  (backuped bytes of 1st segment).
   next_result = enc_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(total_backup_size, next_result.ValueOrDie());
+  EXPECT_EQ(total_backup_size, next_result.value());
   EXPECT_EQ(buffer_size, enc_stream->Position());
 
   // Call Next() again, it should return a full segment (2nd segment).
@@ -519,7 +526,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, BackupAndPosition) {
   buffer_size = pt_segment_size;
   next_result = enc_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(prev_position + buffer_size, enc_stream->Position());
 
   // BackUp a few times, with total over the returned buffer_size.
@@ -540,7 +547,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, BackupAndPosition) {
   // Call Next() again, it should return a full segment (2nd segment);
   next_result = enc_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(prev_position + buffer_size, enc_stream->Position());
   EXPECT_EQ(2 * pt_segment_size - header_size, enc_stream->Position());
 
@@ -559,7 +566,7 @@ TEST_F(StreamingAeadEncryptingStreamTest, BackupAndPosition) {
   // Try closing the stream again.
   close_status = enc_stream->Close();
   EXPECT_FALSE(close_status.ok());
-  EXPECT_EQ(util::error::FAILED_PRECONDITION, close_status.error_code());
+  EXPECT_EQ(absl::StatusCode::kFailedPrecondition, close_status.code());
 }
 
 }  // namespace

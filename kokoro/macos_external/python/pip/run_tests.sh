@@ -14,58 +14,37 @@
 # limitations under the License.
 ################################################################################
 
-
 set -euo pipefail
-cd "${KOKORO_ARTIFACTS_DIR}/git/tink"
 
-./kokoro/copy_credentials.sh
+if [[ -n "${KOKORO_ARTIFACTS_DIR:-}" ]]; then
+  cd "$(echo "${KOKORO_ARTIFACTS_DIR}"/git*/tink)"
+fi
 
-install_temp_protoc() {
-  local protoc_version='3.14.0'
-  local protoc_zip="protoc-${protoc_version}-osx-x86_64.zip"
-  local protoc_url="https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/${protoc_zip}"
-  local -r protoc_tmpdir="$(mktemp -dt tink-protoc.XXXXXX)"
-  (
-    cd "${protoc_tmpdir}"
-    curl -OL "${protoc_url}"
-    unzip "${protoc_zip}" bin/protoc
-  )
-  export PATH="${protoc_tmpdir}/bin:${PATH}"
-}
+./kokoro/testutils/copy_credentials.sh "python/testdata" "all"
 
-install_pip_package() {
-  # Check if we can build Tink python package.
-  (
-    cd python
+# Use the latest Python 3.8.
+eval "$(pyenv init -)"
+pyenv install "3.8"
+pyenv global "3.8"
 
-    # Needed for setuptools
-    use_bazel.sh "$(cat .bazelversion)"
+source ./kokoro/testutils/install_protoc.sh
+source ./kokoro/testutils/install_vault.sh
+source ./kokoro/testutils/run_hcvault_test_server.sh
 
-    # Set path to Tink base folder
-    export TINK_PYTHON_SETUPTOOLS_OVERRIDE_BASE_PATH="${PWD}/.."
+# Install a test transit key.
+vault write -f transit/keys/key-1
 
-    # Update pip and install all requirements. Note that on MacOS we need to
-    # use the --user flag as otherwise pip will complain about permissions.
-    pip3 install --upgrade pip --user
-    pip3 install --upgrade setuptools --user
-    pip3 install . --user
-  )
-}
+./kokoro/testutils/install_tink_via_pip.sh -a "${PWD}/python"
 
-run_tests_with_package() {
-  # Get root certificates for gRPC
-  wget https://raw.githubusercontent.com/grpc/grpc/master/etc/roots.pem
-  export GRPC_DEFAULT_SSL_ROOTS_FILE_PATH="${PWD}/roots.pem"
+# Get root certificates for gRPC
+curl -OLsS https://raw.githubusercontent.com/grpc/grpc/master/etc/roots.pem
+export GRPC_DEFAULT_SSL_ROOTS_FILE_PATH="${PWD}/roots.pem"
 
-  # Set path to Tink base folder
-  export TINK_SRC_PATH="${PWD}"
+# Set path to the Tink Python folder
+export TINK_PYTHON_ROOT_PATH="${PWD}/python"
 
-  # Run Python tests directly so the package is used.
-  # We exclude tests in tink/cc/pybind: they are implementation details and may
-  # depend on a testonly shared object.
-  find python/tink/ -not -path "*cc/pybind*" -type f -name "*_test.py" -print0 | xargs -0 -n1 python3
-}
-
-install_temp_protoc
-install_pip_package
-run_tests_with_package
+# Run Python tests directly so the package is used.
+# We exclude tests in tink/cc/pybind: they are implementation details and may
+# depend on a testonly shared object.
+find python/tink/ -not -path "*cc/pybind*" -type f -name "*_test.py" -print0 \
+  | xargs -0 -n1 python3

@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package daead_test
 
@@ -21,16 +19,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/tink/go/daead"
 	"github.com/google/tink/go/keyset"
-	"github.com/google/tink/go/testutil"
 
 	tinkpb "github.com/google/tink/go/proto/tink_go_proto"
 )
 
 func TestKeyTemplates(t *testing.T) {
-	testutil.SkipTestIfTestSrcDirIsNotSet(t)
 	var testCases = []struct {
 		name     string
 		template *tinkpb.KeyTemplate
@@ -40,13 +35,6 @@ func TestKeyTemplates(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			want, err := testutil.KeyTemplateProto("daead", tc.name)
-			if err != nil {
-				t.Fatalf("testutil.KeyTemplateProto('daead', tc.name) failed: %s", err)
-			}
-			if !proto.Equal(want, tc.template) {
-				t.Errorf("template %s is not equal to '%s'", tc.name, tc.template)
-			}
 			if err := testEncryptDecrypt(tc.template); err != nil {
 				t.Errorf("%v", err)
 			}

@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 // Package subtle implements the key wrapping primitive KWP defined in
 // NIST SP 800 38f.
@@ -43,6 +41,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+
+	// Placeholder for internal crypto/cipher allowlist, please ignore.
 )
 
 const (

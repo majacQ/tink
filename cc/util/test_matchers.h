@@ -17,8 +17,14 @@
 #ifndef TINK_UTIL_TEST_MATCHERS_H_
 #define TINK_UTIL_TEST_MATCHERS_H_
 
+#include <ostream>
+#include <string>
+#include <type_traits>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 
@@ -36,7 +42,8 @@ template <typename StatusOrType>
 class IsOkAndHoldsMatcherImpl
     : public ::testing::MatcherInterface<StatusOrType> {
  public:
-  using value_type = typename std::remove_reference<StatusOrType>::type::type;
+  using value_type =
+      typename std::remove_reference<StatusOrType>::type::value_type;
 
   template <typename InnerMatcher>
   explicit IsOkAndHoldsMatcherImpl(InnerMatcher&& inner_matcher)
@@ -62,13 +69,13 @@ class IsOkAndHoldsMatcherImpl
     }
 
     ::testing::StringMatchResultListener inner_listener;
-    const bool matches = inner_matcher_.MatchAndExplain(
-        actual_value.ValueOrDie(), &inner_listener);
+    const bool matches =
+        inner_matcher_.MatchAndExplain(*actual_value, &inner_listener);
     const std::string inner_explanation = inner_listener.str();
     if (!inner_explanation.empty()) {
       *result_listener << "which contains value "
-                       << ::testing::PrintToString(actual_value.ValueOrDie())
-                       << ", " << inner_explanation;
+                       << ::testing::PrintToString(*actual_value) << ", "
+                       << inner_explanation;
     }
     return matches;
   }
@@ -98,14 +105,24 @@ class IsOkAndHoldsMatcher {
 };
 }  // namespace internal
 
+inline std::string StatusToString(const util::Status& s) {
+  return s.ToString();
+}
+
+template <typename T>
+std::string StatusToString(const util::StatusOr<T>& s) {
+  return s.status().ToString();
+}
+
 // Matches a util::StatusOk() value.
 // This is better than EXPECT_TRUE(status.ok())
 // because the error message is a part of the failure messsage.
-MATCHER(IsOk, "is a Status with an OK value") {
+MATCHER(IsOk,
+        absl::StrCat(negation ? "isn't" : "is", " a Status with an OK value")) {
   if (arg.ok()) {
     return true;
   }
-  *result_listener << arg.ToString();
+  *result_listener << StatusToString(arg);
   return false;
 }
 
@@ -118,21 +135,21 @@ IsOkAndHolds(InnerMatcher&& inner_matcher) {
       std::forward<InnerMatcher>(inner_matcher));
 }
 
-// Matches a Status with the specified 'code' as error_code().
+// Matches a Status with the specified 'code' as code().
 MATCHER_P(StatusIs, code,
-          "is a Status with a " + util::ErrorCodeString(code) + " code") {
-  if (arg.CanonicalCode() == code) {
+          "is a Status with a " + absl::StatusCodeToString(code) + " code") {
+  if (arg.code() == code) {
     return true;
   }
   *result_listener << ::testing::PrintToString(arg);
   return false;
 }
 
-// Matches a Status whose error_code() equals 'code', and whose
-// error_message() matches 'message_macher'.
+// Matches a Status whose code() equals 'code', and whose message() matches
+// 'message_macher'.
 MATCHER_P2(StatusIs, code, message_matcher, "") {
-  return (arg.CanonicalCode() == code) &&
-         testing::Matches(message_matcher)(arg.error_message());
+  return (arg.code() == code) &&
+         testing::Matches(message_matcher)(std::string(arg.message()));
 }
 
 // Matches a Keyset::Key with `key`.
@@ -145,7 +162,14 @@ MATCHER_P(EqualsKey, key, "is equals to the expected key") {
          arg.key_data().value() == key.key_data().value()) {
     return true;
   }
-  *result_listener << arg.DebugString();
+  *result_listener << "Expected: " << arg.key_id() << ", "
+                   << arg.output_prefix_type() << arg.key_data().type_url()
+                   << ", " << arg.key_data().key_material_type() << ", "
+                   << arg.key_data().value();
+  *result_listener << "\nActual: " << key.key_id() << ", "
+                   << key.output_prefix_type() << key.key_data().type_url()
+                   << ", " << key.key_data().key_material_type() << ", "
+                   << key.key_data().value();
   return false;
 }
 

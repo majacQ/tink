@@ -18,8 +18,10 @@
 #define TINK_SUBTLE_AES_CTR_BORINGSSL_H_
 
 #include <memory>
+#include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "openssl/evp.h"
 #include "tink/internal/fips_utils.h"
 #include "tink/subtle/ind_cpa_cipher.h"

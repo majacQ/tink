@@ -17,7 +17,7 @@
 #ifndef TINK_AEAD_AEAD_CONFIG_H_
 #define TINK_AEAD_AEAD_CONFIG_H_
 
-#include "absl/base/macros.h"
+#include "absl/base/attributes.h"
 #include "tink/util/status.h"
 #include "proto/config.pb.h"
 
@@ -34,14 +34,6 @@ namespace tink {
 //
 class AeadConfig {
  public:
-  static constexpr char kCatalogueName[] = "TinkAead";
-  static constexpr char kPrimitiveName[] = "Aead";
-
-  // Returns config of Aead implementations supported
-  // in the current Tink release.
-  ABSL_DEPRECATED("This is not supported anymore.")
-  static const google::crypto::tink::RegistryConfig& Latest();
-
   // Registers Aead primitive wrapper and key managers for all Aead key types
   // from the current Tink release.
   static crypto::tink::util::Status Register();

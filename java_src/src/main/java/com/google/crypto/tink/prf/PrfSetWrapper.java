@@ -15,10 +15,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 package com.google.crypto.tink.prf;
 
-import com.google.crypto.tink.PrimitiveSet;
 import com.google.crypto.tink.PrimitiveWrapper;
-import com.google.crypto.tink.Registry;
-import com.google.crypto.tink.proto.OutputPrefixType;
+import com.google.crypto.tink.internal.LegacyProtoKey;
+import com.google.crypto.tink.internal.MonitoringUtil;
+import com.google.crypto.tink.internal.MutableMonitoringRegistry;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveConstructor;
+import com.google.crypto.tink.internal.PrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveSet;
+import com.google.crypto.tink.monitoring.MonitoringClient;
+import com.google.crypto.tink.monitoring.MonitoringKeysetInfo;
+import com.google.crypto.tink.prf.internal.LegacyFullPrf;
 import com.google.errorprone.annotations.Immutable;
 import java.security.GeneralSecurityException;
 import java.util.Collections;
@@ -34,12 +41,45 @@ import java.util.Map;
  */
 @Immutable
 public class PrfSetWrapper implements PrimitiveWrapper<Prf, PrfSet> {
+
+  private static final PrfSetWrapper WRAPPER = new PrfSetWrapper();
+  private static final PrimitiveConstructor<LegacyProtoKey, Prf>
+      LEGACY_FULL_PRF_PRIMITIVE_CONSTRUCTOR =
+          PrimitiveConstructor.create(LegacyFullPrf::create, LegacyProtoKey.class, Prf.class);
+
   private static class WrappedPrfSet extends PrfSet {
     // This map is constructed using Collections.unmodifiableMap
     @SuppressWarnings("Immutable")
     private final Map<Integer, Prf> keyIdToPrfMap;
 
     private final int primaryKeyId;
+
+    @Immutable
+    private static class PrfWithMonitoring implements Prf {
+      private final Prf prf;
+      private final int keyId;
+
+      @SuppressWarnings("Immutable")
+      private final MonitoringClient.Logger logger;
+
+      @Override
+      public byte[] compute(byte[] input, int outputLength) throws GeneralSecurityException {
+        try {
+          byte[] output = prf.compute(input, outputLength);
+          logger.log(keyId, input.length);
+          return output;
+        } catch (GeneralSecurityException e) {
+          logger.logFailure();
+          throw e;
+        }
+      }
+
+      public PrfWithMonitoring(Prf prf, int keyId, MonitoringClient.Logger logger) {
+        this.prf = prf;
+        this.keyId = keyId;
+        this.logger = logger;
+      }
+    }
 
     private WrappedPrfSet(PrimitiveSet<Prf> primitives) throws GeneralSecurityException {
       if (primitives.getRawPrimitives().isEmpty()) {
@@ -48,17 +88,23 @@ public class PrfSetWrapper implements PrimitiveWrapper<Prf, PrfSet> {
       if (primitives.getPrimary() == null) {
         throw new GeneralSecurityException("Primary key not set.");
       }
+      MonitoringClient.Logger logger;
+      if (primitives.hasAnnotations()) {
+        MonitoringClient client = MutableMonitoringRegistry.globalInstance().getMonitoringClient();
+        MonitoringKeysetInfo keysetInfo = MonitoringUtil.getMonitoringKeysetInfo(primitives);
+        logger = client.createLogger(keysetInfo, "prf", "compute");
+      } else {
+        logger = MonitoringUtil.DO_NOTHING_LOGGER;
+      }
 
       primaryKeyId = primitives.getPrimary().getKeyId();
       List<PrimitiveSet.Entry<Prf>> entries = primitives.getRawPrimitives();
       Map<Integer, Prf> mutablePrfMap = new HashMap<>();
       for (PrimitiveSet.Entry<Prf> entry : entries) {
-        if (!entry.getOutputPrefixType().equals(OutputPrefixType.RAW)) {
-          throw new GeneralSecurityException(
-              "Key " + entry.getKeyId() + " has non raw prefix type");
-        }
         // Likewise, the key IDs of the PrfSet passed
-        mutablePrfMap.put(entry.getKeyId(), entry.getPrimitive());
+        mutablePrfMap.put(
+            entry.getKeyId(),
+            new PrfWithMonitoring(entry.getFullPrimitive(), entry.getKeyId(), logger));
       }
       keyIdToPrfMap = Collections.unmodifiableMap(mutablePrfMap);
     }
@@ -90,6 +136,18 @@ public class PrfSetWrapper implements PrimitiveWrapper<Prf, PrfSet> {
   }
 
   public static void register() throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new PrfSetWrapper());
+    MutablePrimitiveRegistry.globalInstance().registerPrimitiveWrapper(WRAPPER);
+    MutablePrimitiveRegistry.globalInstance()
+        .registerPrimitiveConstructor(LEGACY_FULL_PRF_PRIMITIVE_CONSTRUCTOR);
+  }
+
+  /**
+   * registerToInternalPrimitiveRegistry is a non-public method (it takes an argument of an
+   * internal-only type) registering an instance of {@code PrfSetWrapper} to the provided {@code
+   * PrimitiveRegistry.Builder}.
+   */
+  public static void registerToInternalPrimitiveRegistry(
+      PrimitiveRegistry.Builder primitiveRegistryBuilder) throws GeneralSecurityException {
+    primitiveRegistryBuilder.registerPrimitiveWrapper(WRAPPER);
   }
 }

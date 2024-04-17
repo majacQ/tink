@@ -17,6 +17,8 @@
 #ifndef TINK_AEAD_H_
 #define TINK_AEAD_H_
 
+#include <string>
+
 #include "absl/strings/string_view.h"
 #include "tink/util/statusor.h"
 
@@ -49,7 +51,7 @@ class Aead {
       absl::string_view ciphertext,
       absl::string_view associated_data) const = 0;
 
-  virtual ~Aead() {}
+  virtual ~Aead() = default;
 };
 
 }  // namespace tink

@@ -17,12 +17,20 @@
 #define TINK_PRF_AES_CMAC_PRF_KEY_MANAGER_H_
 
 #include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "tink/core/key_type_manager.h"
+#include "tink/core/template_util.h"
+#include "tink/input_stream.h"
 #include "tink/key_manager.h"
+#include "tink/prf/prf_set.h"
 #include "tink/subtle/prf/prf_set_util.h"
 #include "tink/subtle/random.h"
 #include "tink/subtle/stateful_cmac_boringssl.h"
@@ -76,7 +84,7 @@ class AesCmacPrfKeyManager
     if (!status.ok()) return status;
     if (key.key_value().size() != kKeySizeInBytes) {
       return crypto::tink::util::Status(
-          util::error::INVALID_ARGUMENT,
+          absl::StatusCode::kInvalidArgument,
           "Invalid AesCmacPrfKey: key_value wrong length.");
     }
     return util::OkStatus();
@@ -90,7 +98,7 @@ class AesCmacPrfKeyManager
     if (!status.ok()) return status;
     if (key_format.key_size() != kKeySizeInBytes) {
       return crypto::tink::util::Status(
-          crypto::tink::util::error::INVALID_ARGUMENT,
+          absl::StatusCode::kInvalidArgument,
           "Invalid AesCmacPrfKeyFormat: invalid key_size.");
     }
     return util::OkStatus();
@@ -119,7 +127,7 @@ class AesCmacPrfKeyManager
     }
     google::crypto::tink::AesCmacPrfKey key;
     key.set_version(get_version());
-    key.set_key_value(randomness.ValueOrDie());
+    key.set_key_value(randomness.value());
     return key;
   }
 

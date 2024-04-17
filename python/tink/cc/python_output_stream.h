@@ -14,10 +14,11 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_PYTHON_CC_PYTHON_OUTPUT_STREAM_H_
-#define TINK_PYTHON_CC_PYTHON_OUTPUT_STREAM_H_
+#ifndef TINK_PYTHON_TINK_CC_PYTHON_OUTPUT_STREAM_H_
+#define TINK_PYTHON_TINK_CC_PYTHON_OUTPUT_STREAM_H_
 
 #include <memory>
+#include <string>
 
 #include "tink/output_stream.h"
 #include "tink/util/status.h"
@@ -62,4 +63,4 @@ class PythonOutputStream : public OutputStream {
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_PYTHON_CC_PYTHON_OUTPUT_STREAM_H_
+#endif  // TINK_PYTHON_TINK_CC_PYTHON_OUTPUT_STREAM_H_

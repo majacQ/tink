@@ -1,4 +1,4 @@
-# Copyright 2019 Google LLC.
+# Copyright 2019 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,6 @@
 # limitations under the License.
 
 """Tests for tink.python.tink.core.primitive_set."""
-
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
 
 from absl.testing import absltest
 from tink.proto import tink_pb2
@@ -104,12 +99,13 @@ class PrimitiveSetTest(absltest.TestCase):
     self.assertEqual(core.crypto_format.output_prefix(key), entry.identifier)
     self.assertEqual(1, entry.key_id)
 
-  def test_primary_returns_none(self):
+  def test_primary_not_set_primary_fails(self):
     primitive_set = core.new_primitive_set(mac.Mac)
     key = new_key(MAC_TEMPLATE, key_id=1)
     primitive = core.Registry.primitive(key.key_data, mac.Mac)
     primitive_set.add_primitive(primitive, key)
-    self.assertIsNone(primitive_set.primary())
+    with self.assertRaises(core.TinkError):
+      primitive_set.primary()
 
   def test_same_key_id_and_prefix_type(self):
     primitive_set = core.new_primitive_set(mac.Mac)

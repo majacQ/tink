@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 // Package insecurecleartextkeyset provides methods to read or write cleartext
 // keyset material.
@@ -30,10 +28,8 @@ import (
 )
 
 var (
-	// KeysetHandle creates a keyset.Handle from cleartext key material.
-	KeysetHandle = internal.KeysetHandle.(func(*tinkpb.Keyset) *keyset.Handle)
-	// KeysetMaterial returns the key material contained in a keyset.Handle.
-	KeysetMaterial = internal.KeysetMaterial.(func(*keyset.Handle) *tinkpb.Keyset)
+	keysetHandle   = internal.KeysetHandle.(func(*tinkpb.Keyset, ...keyset.Option) (*keyset.Handle, error))
+	keysetMaterial = internal.KeysetMaterial.(func(*keyset.Handle) *tinkpb.Keyset)
 
 	errInvalidKeyset = errors.New("insecurecleartextkeyset: invalid keyset")
 	errInvalidHandle = errors.New("insecurecleartextkeyset: invalid handle")
@@ -42,7 +38,7 @@ var (
 )
 
 // Read creates a keyset.Handle from a cleartext keyset obtained via r.
-func Read(r keyset.Reader) (*keyset.Handle, error) {
+func Read(r keyset.Reader, opts ...keyset.Option) (*keyset.Handle, error) {
 	if r == nil {
 		return nil, errInvalidReader
 	}
@@ -50,19 +46,49 @@ func Read(r keyset.Reader) (*keyset.Handle, error) {
 	if err != nil || ks == nil || len(ks.Key) == 0 {
 		return nil, errInvalidKeyset
 	}
-	return KeysetHandle(ks), nil
+	return keysetHandle(ks, opts...)
 }
 
-// Write exports the keyset from h to the given writer w without encrypting it.
+// Write exports the keyset from handle to the given writer w without encrypting it.
 //
 // Storing secret key material in an unencrypted fashion is dangerous. If
-// feasible, you should use func keyset.Handle.Write() instead.
-func Write(h *keyset.Handle, w keyset.Writer) error {
-	if h == nil {
+// feasible, you should use [keyset.Handle.Write] instead.
+func Write(handle *keyset.Handle, w keyset.Writer) error {
+	if handle == nil {
 		return errInvalidHandle
 	}
 	if w == nil {
 		return errInvalidWriter
 	}
-	return w.Write(KeysetMaterial(h))
+	return w.Write(KeysetMaterial(handle))
+}
+
+// KeysetMaterial returns the key material contained in a keyset.Handle.
+func KeysetMaterial(handle *keyset.Handle) *tinkpb.Keyset {
+	return keysetMaterial(handle)
+}
+
+// KeysetHandle creates a keyset.Handle from cleartext key material.
+//
+// Callers should verify that the returned *keyset.Handle isn't nil.
+//
+// Deprecated: Use [Read] instead with a serialized keyset.
+//
+//	sks, err := proto.Marshal(ks)
+//	if err != nil {
+//		return err
+//	}
+//	h, err := insecurecleartextkeyset.Read(keyset.NewBinaryReader(bytes.NewBuffer(sks)))
+//	if err != nil {
+//		return err
+//	}
+func KeysetHandle(ks *tinkpb.Keyset) *keyset.Handle {
+	kh, err := keysetHandle(ks)
+	if err != nil {
+		// this *keyset.Handle can only return errors when *keyset.Option arguments
+		// are provided. To maintain backwards compatibility and avoid panic, it returns
+		// a nil value if an error happens.
+		return nil
+	}
+	return kh
 }

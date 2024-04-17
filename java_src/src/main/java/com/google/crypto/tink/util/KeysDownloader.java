@@ -23,6 +23,7 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpStatusCodes;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,12 +32,12 @@ import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.Locale;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.concurrent.GuardedBy;
-import org.joda.time.Instant;
 
 /**
  * Thread-safe downloader.
@@ -52,7 +53,10 @@ import org.joda.time.Instant;
  * to proactively fetch the data.
  *
  * @since 1.1.0
+ * @deprecated This is not supported by Tink, as it incurs a dependency on <code>
+ *     com.google.api.client.http</code>. If you need this, please copy it into your codebase.
  */
+@Deprecated
 public class KeysDownloader {
   private static final Charset UTF_8 = Charset.forName("UTF-8");
 
@@ -155,10 +159,11 @@ public class KeysDownloader {
    * <p>Visible so tests can override it in subclasses.
    */
   long getCurrentTimeInMillis() {
-    return Instant.now().getMillis();
+    return System.currentTimeMillis();
   }
 
   @GuardedBy("fetchDataLock")
+  @CanIgnoreReturnValue
   private String fetchAndCacheData() throws IOException {
     long currentTimeInMillis = getCurrentTimeInMillis();
     HttpRequest httpRequest =
@@ -266,7 +271,7 @@ public class KeysDownloader {
   private static void validate(String url) {
     try {
       URL tmp = new URL(url);
-      if (!tmp.getProtocol().toLowerCase().equals("https")) {
+      if (!tmp.getProtocol().toLowerCase(Locale.US).equals("https")) {
         throw new IllegalArgumentException("url must point to a HTTPS server");
       }
     } catch (MalformedURLException ex) {
@@ -281,12 +286,14 @@ public class KeysDownloader {
     private String url;
 
     /** Sets the url which must point to a HTTPS server. */
+    @CanIgnoreReturnValue
     public Builder setUrl(String val) {
       this.url = val;
       return this;
     }
 
     /** Sets the background executor. */
+    @CanIgnoreReturnValue
     public Builder setExecutor(Executor val) {
       this.executor = val;
       return this;
@@ -298,6 +305,7 @@ public class KeysDownloader {
      * <p>You generally should not need to set a custom transport as the default transport {@link
      * KeysDownloader#DEFAULT_HTTP_TRANSPORT} should be suited for most use cases.
      */
+    @CanIgnoreReturnValue
     public Builder setHttpTransport(HttpTransport httpTransport) {
       this.httpTransport = httpTransport;
       return this;

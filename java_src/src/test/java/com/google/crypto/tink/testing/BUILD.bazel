@@ -1,23 +1,6 @@
 licenses(["notice"])
 
 java_test(
-    name = "KeyTypeManagerTestUtilTest",
-    size = "small",
-    srcs = ["KeyTypeManagerTestUtilTest.java"],
-    deps = [
-        "//proto:aes_gcm_java_proto",
-        "//proto:tink_java_proto",
-        "//src/main/java/com/google/crypto/tink:key_template",
-        "//src/main/java/com/google/crypto/tink:key_type_manager",
-        "//src/main/java/com/google/crypto/tink/subtle:random",
-        "//src/main/java/com/google/crypto/tink/testing:key_type_manager_test_util",
-        "@com_google_protobuf//:protobuf_javalite",
-        "@maven//:com_google_truth_truth",
-        "@maven//:junit_junit",
-    ],
-)
-
-java_test(
     name = "TestUtilTest",
     size = "small",
     srcs = ["TestUtilTest.java"],
@@ -29,16 +12,11 @@ java_test(
 )
 
 java_test(
-    name = "TestdataTest",
+    name = "HpkeTestUtilTest",
     size = "small",
-    srcs = ["TestdataTest.java"],
-    data = [
-        "@tink_base//testdata/templates",
-    ],
+    srcs = ["HpkeTestUtilTest.java"],
     deps = [
-        "//src/main/java/com/google/crypto/tink:key_template",
-        "//src/main/java/com/google/crypto/tink/testing:testdata",
-        "@maven//:com_google_truth_truth",
+        "//src/main/java/com/google/crypto/tink/testing:hpke_test_util",
         "@maven//:junit_junit",
     ],
 )

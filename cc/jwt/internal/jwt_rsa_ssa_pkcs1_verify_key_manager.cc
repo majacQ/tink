@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC.
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,21 @@
 ///////////////////////////////////////////////////////////////////////////////
 #include "tink/jwt/internal/jwt_rsa_ssa_pkcs1_verify_key_manager.h"
 
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
+#include "tink/jwt/internal/jwt_public_key_verify_impl.h"
+#include "tink/jwt/internal/jwt_public_key_verify_internal.h"
+#include "tink/public_key_verify.h"
+#include "tink/util/status.h"
+#include "proto/tink.pb.h"
+
 namespace crypto {
 namespace tink {
 namespace jwt_internal {
@@ -24,24 +39,28 @@ using crypto::tink::util::StatusOr;
 using google::crypto::tink::JwtRsaSsaPkcs1Algorithm;
 using google::crypto::tink::JwtRsaSsaPkcs1PublicKey;
 
-StatusOr<std::unique_ptr<JwtPublicKeyVerify>>
+StatusOr<std::unique_ptr<JwtPublicKeyVerifyInternal>>
 JwtRsaSsaPkcs1VerifyKeyManager::PublicKeyVerifyFactory::Create(
     const JwtRsaSsaPkcs1PublicKey& jwt_rsa_ssa_pkcs1_public_key) const {
-  StatusOr<std::string> name_or =
+  StatusOr<std::string> name =
       AlgorithmName(jwt_rsa_ssa_pkcs1_public_key.algorithm());
-  if (!name_or.ok()) {
-    return name_or.status();
+  if (!name.ok()) {
+    return name.status();
   }
-  StatusOr<std::unique_ptr<PublicKeyVerify>> verify_or =
+  StatusOr<std::unique_ptr<PublicKeyVerify>> verify =
       raw_key_manager_.GetPrimitive<PublicKeyVerify>(
           jwt_rsa_ssa_pkcs1_public_key);
-  if (!verify_or.ok()) {
-    return verify_or.status();
+  if (!verify.ok()) {
+    return verify.status();
   }
-  std::unique_ptr<JwtPublicKeyVerify> jwt_public_key_verify =
+  absl::optional<absl::string_view> custom_kid = absl::nullopt;
+  if (jwt_rsa_ssa_pkcs1_public_key.has_custom_kid()) {
+    custom_kid = jwt_rsa_ssa_pkcs1_public_key.custom_kid().value();
+  }
+  std::unique_ptr<JwtPublicKeyVerifyInternal> jwt_public_key_verify =
       absl::make_unique<jwt_internal::JwtPublicKeyVerifyImpl>(
-          std::move(verify_or.ValueOrDie()), name_or.ValueOrDie());
-  return jwt_public_key_verify;
+          *std::move(verify), *name, custom_kid);
+  return std::move(jwt_public_key_verify);
 }
 
 uint32_t JwtRsaSsaPkcs1VerifyKeyManager::get_version() const {
@@ -72,7 +91,7 @@ StatusOr<std::string> JwtRsaSsaPkcs1VerifyKeyManager::AlgorithmName(
     case JwtRsaSsaPkcs1Algorithm::RS512:
       return std::string("RS512");
     default:
-      return Status(util::error::INVALID_ARGUMENT,
+      return Status(absl::StatusCode::kInvalidArgument,
                     "Unsupported RSA SSA PKCS1 Algorithm");
   }
 }

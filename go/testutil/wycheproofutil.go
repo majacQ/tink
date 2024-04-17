@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package testutil
 
@@ -22,11 +20,22 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"testing"
 )
 
 const (
-	wycheproofDir = "wycheproof/testvectors"
+	testvectorsDir = "testdata/testvectors"
 )
+
+// SkipTestIfTestSrcDirIsNotSet skips the test if TEST_SRCDIR is not set.
+// This is necessary when not using Blaze/Bazel, as we don't have a solution for referencing non-Go
+// resources that are external to the repository with Go tooling.
+func SkipTestIfTestSrcDirIsNotSet(t *testing.T) {
+	t.Helper()
+	if _, ok := os.LookupEnv("TEST_SRCDIR"); !ok {
+		t.Skip("TEST_SRCDIR not found")
+	}
+}
 
 // WycheproofSuite represents the common elements of the top level
 // object in a Wycheproof json file. Implementations should embed
@@ -78,12 +87,16 @@ func (a *HexBytes) UnmarshalText(text []byte) error {
 //
 // When using this in a test function, the function should start with
 // SkipTestIfTestSrcDirIsNotSet(), to expediently skip the test.
-func PopulateSuite(suite interface{}, filename string) error {
+func PopulateSuite(suite any, filename string) error {
 	srcDir, ok := os.LookupEnv("TEST_SRCDIR")
 	if !ok {
 		return errors.New("TEST_SRCDIR not found")
 	}
-	f, err := os.Open(filepath.Join(srcDir, wycheproofDir, filename))
+	workspaceDir, ok := os.LookupEnv("TEST_WORKSPACE")
+	if !ok {
+		return errors.New("TEST_WORKSPACE not found")
+	}
+	f, err := os.Open(filepath.Join(srcDir, workspaceDir, testvectorsDir, filename))
 	if err != nil {
 		return err
 	}

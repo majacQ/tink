@@ -20,11 +20,6 @@ aes_eax_pb2.AesEaxKey, one can do:
 handle = keyset_handle.KeysetHandle(aead_key_templates.AES128_EAX).
 """
 
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
-
 from tink.proto import aes_cmac_prf_pb2
 from tink.proto import common_pb2
 from tink.proto import hkdf_prf_pb2
@@ -42,10 +37,11 @@ def _create_aes_cmac_key_template(key_size: int) -> tink_pb2.KeyTemplate:
   key_format = aes_cmac_prf_pb2.AesCmacPrfKeyFormat()
   key_format.key_size = key_size
   key_format.version = 0
-  key_template = tink_pb2.KeyTemplate()
-  key_template.value = key_format.SerializeToString()
-  key_template.type_url = _AES_CMAC_PRF_KEY_TYPE_URL
-  key_template.output_prefix_type = tink_pb2.RAW
+  key_template = tink_pb2.KeyTemplate(
+      value=key_format.SerializeToString(),
+      type_url=_AES_CMAC_PRF_KEY_TYPE_URL,
+      output_prefix_type=tink_pb2.RAW,
+  )
   return key_template
 
 
@@ -56,10 +52,11 @@ def _create_hmac_key_template(
   key_format.params.hash = hash_type
   key_format.key_size = key_size
   key_format.version = 0
-  key_template = tink_pb2.KeyTemplate()
-  key_template.value = key_format.SerializeToString()
-  key_template.type_url = _HMAC_PRF_KEY_TYPE_URL
-  key_template.output_prefix_type = tink_pb2.RAW
+  key_template = tink_pb2.KeyTemplate(
+      value=key_format.SerializeToString(),
+      type_url=_HMAC_PRF_KEY_TYPE_URL,
+      output_prefix_type=tink_pb2.RAW,
+  )
   return key_template
 
 

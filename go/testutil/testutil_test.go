@@ -11,13 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package testutil_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 
 	"github.com/google/tink/go/subtle/random"
@@ -31,16 +30,16 @@ func TestDummyAEAD(t *testing.T) {
 
 	// try to encrypt/decrypt some data
 	data := []byte{0, 1, 1, 2, 3, 5}
-	additionalData := []byte{3, 1, 4, 1, 5}
+	associatedData := []byte{3, 1, 4, 1, 5}
 
 	dummy := &testutil.DummyAEAD{Name: "name"}
-	cipher, err := dummy.Encrypt(data, additionalData)
+	cipher, err := dummy.Encrypt(data, associatedData)
 	if err != nil {
-		t.Fatalf("DummyAEAD.Encrypt(%+v, %+v) gave error: %v", data, additionalData, err)
+		t.Fatalf("DummyAEAD.Encrypt(%+v, %+v) gave error: %v", data, associatedData, err)
 	}
-	decrypt, err := dummy.Decrypt(cipher, additionalData)
+	decrypt, err := dummy.Decrypt(cipher, associatedData)
 	if err != nil {
-		t.Fatalf("DummyAEAD.Decrypt(ciphertext, %+v) gave errr: %v", additionalData, err)
+		t.Fatalf("DummyAEAD.Decrypt(ciphertext, %+v) gave errr: %v", associatedData, err)
 	}
 	if !bytes.Equal(data, decrypt) {
 		t.Errorf("DummyAEAD round-tripped data %+v back to %+v", data, decrypt)
@@ -77,17 +76,20 @@ func TestDummyMAC(t *testing.T) {
 	// Assert that DummyMAC implements the MAC interface.
 	var _ tink.MAC = (*testutil.DummyMAC)(nil)
 	// try to compute mac
-	data := []byte{1, 2, 3, 4, 5}
+	data := []byte("data")
 	dummyMAC := &testutil.DummyMAC{Name: "Mac12347"}
 	digest, err := dummyMAC.ComputeMAC(data)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
-	if !bytes.Equal(append(data, dummyMAC.Name...), digest) {
-		t.Errorf("incorrect digest")
+	if want := []byte("dataMac12347"); !bytes.Equal(digest, want) {
+		t.Errorf("digest = %x, want %x", digest, want)
 	}
-	if err := dummyMAC.VerifyMAC(nil, nil); err != nil {
-		t.Errorf("unexpected result of VerifyMAC")
+	if err := dummyMAC.VerifyMAC(digest, data); err != nil {
+		t.Errorf("VerifyMAC(%x, %x) = %v, want nil", digest, data, err)
+	}
+	if dummyMAC.VerifyMAC(digest, []byte("other data")) == nil {
+		t.Errorf("VerifyMAC(%x, %x) = nil, want error", digest, data)
 	}
 }
 
@@ -138,5 +140,21 @@ func TestAutocorrelationUniformString(t *testing.T) {
 	}
 	if err := testutil.ZTestAutocorrelationUniformString(random.GetRandomBytes(32)); err != nil {
 		t.Errorf("Expected random 32 byte string to show not autocorrelation: %v", err)
+	}
+}
+
+func TestGenerateMutations(t *testing.T) {
+	original := random.GetRandomBytes(8)
+	mutations := testutil.GenerateMutations(original)
+	seen := make(map[string]bool)
+	for i, mutation := range mutations {
+		if bytes.Compare(original, mutation) == 0 {
+			t.Errorf("Expected mutation %x to differ from original %x", mutation, original)
+		}
+		mutationHex := hex.EncodeToString(mutation)
+		if seen[mutationHex] {
+			t.Errorf("Mutation %d (%s) matches an earlier mutation", i, mutationHex)
+		}
+		seen[mutationHex] = true
 	}
 }

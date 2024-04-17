@@ -33,7 +33,7 @@ namespace tink {
 //   auto handle_result = KeysetHandle::GenerateNew(
 //        HybridKeyTemplates::EciesP256HkdfHmacSha256Aes128Gcm());
 //   if (!handle_result.ok()) { /* fail with error */ }
-//   auto keyset_handle = std::move(handle_result.ValueOrDie());
+//   auto keyset_handle = std::move(handle_result.value());
 class HybridKeyTemplates {
  public:
   // Returns a KeyTemplate that generates new instances of
@@ -131,6 +131,16 @@ class HybridKeyTemplates {
   // Returns a KeyTemplate that generates new instances of
   // EciesAeadHkdfPrivateKey with the following parameters:
   //   - KEM: ECDH over curve 25519
+  //   - DEM: AES256-GCM
+  //   - KDF: HKDF-HMAC-SHA256 with an empty salt
+  //   - EC Point Format: Compressed
+  //   - OutputPrefixType: TINK
+  static const google::crypto::tink::KeyTemplate&
+  EciesX25519HkdfHmacSha256Aes256Gcm();
+
+  // Returns a KeyTemplate that generates new instances of
+  // EciesAeadHkdfPrivateKey with the following parameters:
+  //   - KEM: ECDH over curve 25519
   //   - DEM: AES128-CTR-HMAC-SHA256 with the following parameters:
   //          * AES key size: 16 bytes
   //          * AES CTR IV size: 16 bytes
@@ -163,6 +173,60 @@ class HybridKeyTemplates {
   //   - OutputPrefixType: TINK
   static const google::crypto::tink::KeyTemplate&
   EciesX25519HkdfHmacSha256DeterministicAesSiv();
+
+  // Returns a KeyTemplate that generates new instances of
+  // HpkePrivateKey with the following parameters:
+  //   - KEM: ECDH over curve 25519 plus HKDF-SHA256
+  //   - KDF: HKDF-SHA256
+  //   - AEAD: AES-128-GCM
+  //   - OutputPrefixType: TINK
+  static const google::crypto::tink::KeyTemplate&
+  HpkeX25519HkdfSha256Aes128Gcm();
+
+  // Returns a KeyTemplate that generates new instances of
+  // HpkePrivateKey with the following parameters:
+  //   - KEM: ECDH over curve 25519 plus HKDF-SHA256
+  //   - KDF: HKDF-SHA256
+  //   - AEAD: AES-128-GCM
+  //   - OutputPrefixType: RAW
+  static const google::crypto::tink::KeyTemplate&
+  HpkeX25519HkdfSha256Aes128GcmRaw();
+
+  // Returns a KeyTemplate that generates new instances of
+  // HpkePrivateKey with the following parameters:
+  //   - KEM: ECDH over curve 25519 plus HKDF-SHA256
+  //   - KDF: HKDF-SHA256
+  //   - AEAD: AES-256-GCM
+  //   - OutputPrefixType: TINK
+  static const google::crypto::tink::KeyTemplate&
+  HpkeX25519HkdfSha256Aes256Gcm();
+
+  // Returns a KeyTemplate that generates new instances of
+  // HpkePrivateKey with the following parameters:
+  //   - KEM: ECDH over curve 25519 plus HKDF-SHA256
+  //   - KDF: HKDF-SHA256
+  //   - AEAD: AES-256-GCM
+  //   - OutputPrefixType: RAW
+  static const google::crypto::tink::KeyTemplate&
+  HpkeX25519HkdfSha256Aes256GcmRaw();
+
+  // Returns a KeyTemplate that generates new instances of
+  // HpkePrivateKey with the following parameters:
+  //   - KEM: ECDH over curve 25519 plus HKDF-SHA256
+  //   - KDF: HKDF-SHA256
+  //   - AEAD: ChaCha20-Poly1305
+  //   - OutputPrefixType: TINK
+  static const google::crypto::tink::KeyTemplate&
+  HpkeX25519HkdfSha256ChaCha20Poly1305();
+
+  // Returns a KeyTemplate that generates new instances of
+  // HpkePrivateKey with the following parameters:
+  //   - KEM: ECDH over curve 25519 plus HKDF-SHA256
+  //   - KDF: HKDF-SHA256
+  //   - AEAD: ChaCha20-Poly1305
+  //   - OutputPrefixType: RAW
+  static const google::crypto::tink::KeyTemplate&
+  HpkeX25519HkdfSha256ChaCha20Poly1305Raw();
 };
 
 }  // namespace tink

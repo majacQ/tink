@@ -16,8 +16,10 @@
 
 #include "tink/signature/public_key_sign_factory.h"
 
+#include <string>
+#include <utility>
+
 #include "gtest/gtest.h"
-#include "tink/config.h"
 #include "tink/crypto_format.h"
 #include "tink/keyset_handle.h"
 #include "tink/public_key_sign.h"
@@ -30,7 +32,12 @@
 #include "proto/ecdsa.pb.h"
 #include "proto/tink.pb.h"
 
-using crypto::tink::TestKeysetHandle;
+namespace crypto {
+namespace tink {
+namespace {
+
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 using crypto::tink::test::AddTinkKey;
 using google::crypto::tink::EcdsaPrivateKey;
 using google::crypto::tink::EcdsaSignatureEncoding;
@@ -39,10 +46,6 @@ using google::crypto::tink::HashType;
 using google::crypto::tink::KeyData;
 using google::crypto::tink::Keyset;
 using google::crypto::tink::KeyStatusType;
-
-namespace crypto {
-namespace tink {
-namespace {
 
 class PublicKeySignFactoryTest : public ::testing::Test {
  protected:
@@ -63,10 +66,10 @@ TEST_F(PublicKeySignFactoryTest, testBasic) {
   auto public_key_sign_result = PublicKeySignFactory::GetPrimitive(
       *TestKeysetHandle::GetKeysetHandle(keyset));
   EXPECT_FALSE(public_key_sign_result.ok());
-  EXPECT_EQ(util::error::INVALID_ARGUMENT,
-      public_key_sign_result.status().error_code());
+  EXPECT_EQ(absl::StatusCode::kInvalidArgument,
+      public_key_sign_result.status().code());
   EXPECT_PRED_FORMAT2(testing::IsSubstring, "at least one key",
-      public_key_sign_result.status().error_message());
+                      std::string(public_key_sign_result.status().message()));
 }
 
 TEST_F(PublicKeySignFactoryTest, testPrimitive) {
@@ -94,13 +97,15 @@ TEST_F(PublicKeySignFactoryTest, testPrimitive) {
       *TestKeysetHandle::GetKeysetHandle(keyset));
   EXPECT_TRUE(public_key_sign_result.ok())
       << public_key_sign_result.status();
-  auto public_key_sign = std::move(public_key_sign_result.ValueOrDie());
+  auto public_key_sign = std::move(public_key_sign_result.value());
 
   std::string data = "some data to sign";
   auto sign_result = public_key_sign->Sign(data);
   EXPECT_TRUE(sign_result.ok()) << sign_result.status();
-  EXPECT_NE(data, sign_result.ValueOrDie());
+  EXPECT_NE(data, sign_result.value());
 }
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace
 }  // namespace tink

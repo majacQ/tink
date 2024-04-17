@@ -16,15 +16,27 @@
 
 #include "tink/util/istream_input_stream.h"
 
-#include <unistd.h>
+#include <errno.h>
+#include <stdlib.h>
+
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <istream>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "tink/internal/test_file_util.h"
 #include "tink/subtle/random.h"
+#include "tink/util/status.h"
 #include "tink/util/test_util.h"
 
 namespace crypto {
@@ -43,7 +55,7 @@ std::unique_ptr<std::istream> GetTestIstream(absl::string_view filename,
   std::ofstream output (full_filename, std::ofstream::binary);
   if (!output.write(file_contents->data(), size) || output.tellp() != size) {
     std::clog << "Failed to write " << size << " bytes to file "
-              << full_filename << " error: " << errno << std::endl;
+              << full_filename << " error: " << errno << '\n';
 
     exit(1);
   }
@@ -62,8 +74,7 @@ util::Status ReadTillEnd(util::IstreamInputStream* input_stream,
   const void* buffer;
   auto next_result = input_stream->Next(&buffer);
   while (next_result.ok()) {
-    contents->append(static_cast<const char*>(buffer),
-                     next_result.ValueOrDie());
+    contents->append(static_cast<const char*>(buffer), next_result.value());
     next_result = input_stream->Next(&buffer);
   }
   return next_result.status();
@@ -73,17 +84,18 @@ class IstreamInputStreamTest : public ::testing::Test {
 };
 
 TEST_F(IstreamInputStreamTest, testReadingStreams) {
-  for (int stream_size : {0, 10, 100, 1000, 10000, 100000, 1000000}) {
+    for (int stream_size : {0, 10, 100, 1000, 10000, 100000, 1000000}) {
     std::string file_contents;
-    std::string filename = absl::StrCat(stream_size, "_reading_test.bin");
+    std::string filename = absl::StrCat(
+        stream_size, "_", internal::GetTestFileNamePrefix(), "_file.bin");
     auto input = GetTestIstream(filename, stream_size, &file_contents);
     EXPECT_EQ(stream_size, file_contents.size());
     auto input_stream = absl::make_unique<util::IstreamInputStream>(
         std::move(input));
     std::string stream_contents;
     auto status = ReadTillEnd(input_stream.get(), &stream_contents);
-    EXPECT_EQ(util::error::OUT_OF_RANGE, status.error_code());
-    EXPECT_EQ("EOF", status.error_message());
+    EXPECT_EQ(absl::StatusCode::kOutOfRange, status.code());
+    EXPECT_EQ("EOF", status.message());
     EXPECT_EQ(file_contents, stream_contents);
   }
 }
@@ -92,7 +104,8 @@ TEST_F(IstreamInputStreamTest, testCustomBufferSizes) {
   int stream_size = 100000;
   for (int buffer_size : {1, 10, 100, 1000, 10000}) {
     std::string file_contents;
-    std::string filename = absl::StrCat(buffer_size, "_buffer_size_test.bin");
+    std::string filename = absl::StrCat(
+        buffer_size, "_", internal::GetTestFileNamePrefix(), "_file.bin");
     auto input = GetTestIstream(filename, stream_size, &file_contents);
     EXPECT_EQ(stream_size, file_contents.size());
     auto input_stream = absl::make_unique<util::IstreamInputStream>(
@@ -100,7 +113,7 @@ TEST_F(IstreamInputStreamTest, testCustomBufferSizes) {
     const void* buffer;
     auto next_result = input_stream->Next(&buffer);
     EXPECT_TRUE(next_result.ok()) << next_result.status();
-    EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+    EXPECT_EQ(buffer_size, next_result.value());
     EXPECT_EQ(file_contents.substr(0, buffer_size),
               std::string(static_cast<const char*>(buffer), buffer_size));
   }
@@ -111,7 +124,8 @@ TEST_F(IstreamInputStreamTest, testBackupAndPosition) {
   int buffer_size = 1234;
   const void* buffer;
   std::string file_contents;
-  std::string filename = absl::StrCat(buffer_size, "_backup_test.bin");
+  std::string filename =
+      absl::StrCat(buffer_size, internal::GetTestFileNamePrefix(), "_file.bin");
   auto input = GetTestIstream(filename, stream_size, &file_contents);
   EXPECT_EQ(stream_size, file_contents.size());
 
@@ -121,7 +135,7 @@ TEST_F(IstreamInputStreamTest, testBackupAndPosition) {
   EXPECT_EQ(0, input_stream->Position());
   auto next_result = input_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(buffer_size, input_stream->Position());
   EXPECT_EQ(file_contents.substr(0, buffer_size),
             std::string(static_cast<const char*>(buffer), buffer_size));
@@ -136,7 +150,7 @@ TEST_F(IstreamInputStreamTest, testBackupAndPosition) {
   // Call Next(), it should return exactly the backed up bytes.
   next_result = input_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(total_backup_size, next_result.ValueOrDie());
+  EXPECT_EQ(total_backup_size, next_result.value());
   EXPECT_EQ(buffer_size, input_stream->Position());
   EXPECT_EQ(
       file_contents.substr(buffer_size - total_backup_size, total_backup_size),
@@ -153,7 +167,7 @@ TEST_F(IstreamInputStreamTest, testBackupAndPosition) {
   // Call Next(), it should return exactly the backed up bytes.
   next_result = input_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(total_backup_size, next_result.ValueOrDie());
+  EXPECT_EQ(total_backup_size, next_result.value());
   EXPECT_EQ(buffer_size, input_stream->Position());
   EXPECT_EQ(
       file_contents.substr(buffer_size - total_backup_size, total_backup_size),
@@ -162,7 +176,7 @@ TEST_F(IstreamInputStreamTest, testBackupAndPosition) {
   // Call Next() again, it should return the second block.
   next_result = input_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(2 * buffer_size, input_stream->Position());
   EXPECT_EQ(file_contents.substr(buffer_size, buffer_size),
             std::string(static_cast<const char*>(buffer), buffer_size));
@@ -180,7 +194,7 @@ TEST_F(IstreamInputStreamTest, testBackupAndPosition) {
   // Call Next() again, it should return the second block.
   next_result = input_stream->Next(&buffer);
   EXPECT_TRUE(next_result.ok()) << next_result.status();
-  EXPECT_EQ(buffer_size, next_result.ValueOrDie());
+  EXPECT_EQ(buffer_size, next_result.value());
   EXPECT_EQ(2 * buffer_size, input_stream->Position());
   EXPECT_EQ(file_contents.substr(buffer_size, buffer_size),
             std::string(static_cast<const char*>(buffer), buffer_size));

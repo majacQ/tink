@@ -17,9 +17,12 @@
 #ifndef TINK_UTIL_SECRET_DATA_H_
 #define TINK_UTIL_SECRET_DATA_H_
 
+#include <cstddef>
+#include <cstdint>  // IWYU pragma: keep
 #include <memory>
+#include <string>
 #include <type_traits>
-#include <vector>
+#include <vector>  // IWYU pragma: keep
 
 #include "absl/strings/string_view.h"
 #include "tink/util/secret_data_internal.h"
@@ -27,6 +30,17 @@
 namespace crypto {
 namespace tink {
 namespace util {
+namespace internal {
+
+template <typename T>
+struct SanitizingDeleter {
+  void operator()(T* ptr) {
+    ptr->~T();  // Invoke destructor. Must do this before sanitize.
+    SanitizingAllocator<T>().deallocate(ptr, 1);
+  }
+};
+
+}  // namespace internal
 
 // Stores secret (sensitive) data and makes sure it's marked as such and
 // destroyed in a safe way.
@@ -45,8 +59,6 @@ using SecretData = std::vector<uint8_t, internal::SanitizingAllocator<uint8_t>>;
 
 // Stores secret (sensitive) object and makes sure it's marked as such and
 // destroyed in a safe way.
-// The object needs to be trivially destructible (to make sure it does not
-// allocate memory internally).
 // SecretUniquePtr MUST be constructed using MakeSecretUniquePtr function.
 // Generally SecretUniquePtr should be used iff SecretData is unsuitable.
 //
@@ -60,6 +72,11 @@ using SecretData = std::vector<uint8_t, internal::SanitizingAllocator<uint8_t>>;
 //  private:
 //   util::SecretUniquePtr<AES_KEY> key_ = util::MakeSecretUniquePtr<AES_KEY>();
 // }
+//
+// NOTE: SecretUniquePtr<T> will only protect the data which is stored in the
+// memory which a T object takes on the stack. In particular, std::string and
+// std::vector SHOULD NOT be used as arguments of T: they allocate memory
+// on the heap, and hence the data stored in them will NOT be protected.
 template <typename T>
 class SecretUniquePtr {
  private:
@@ -69,14 +86,13 @@ class SecretUniquePtr {
   using pointer = typename Value::pointer;
   using element_type = typename Value::element_type;
   using deleter_type = typename Value::deleter_type;
-  static_assert(std::is_trivially_destructible<T>::value,
-                "SecureUniquePtr only supports trivially destructible types");
-  SecretUniquePtr() {}
+
+  SecretUniquePtr() = default;
 
   pointer get() const { return value_.get(); }
   deleter_type& get_deleter() { return value_.get_deleter(); }
   const deleter_type& get_deleter() const { return value_.get_deleter(); }
-  void swap(SecretUniquePtr& other) { value_.swap(other.value_); }
+  void swap(SecretUniquePtr& other) noexcept { value_.swap(other.value_); }
   void reset() { value_.reset(); }
 
   typename std::add_lvalue_reference<T>::type operator*() const {
@@ -109,6 +125,12 @@ inline SecretData SecretDataFromStringView(absl::string_view secret) {
   return {secret.begin(), secret.end()};
 }
 
+// The same as SecretUniquePtr, but with value semantics.
+//
+// NOTE: SecretValue<T> will only protect the data which is stored in the
+// memory which a T object takes on the stack. In particular, std::string and
+// std::vector SHOULD NOT be used as arguments of T: they allocate memory
+// on the heap, and hence the data stored in them will NOT be protected.
 template <typename T>
 class SecretValue {
  public:
@@ -131,7 +153,7 @@ class SecretValue {
   SecretUniquePtr<T> ptr_;
 };
 
-inline void SafeZeroMemory(char* ptr, std::size_t size) {
+inline void SafeZeroMemory(void* ptr, std::size_t size) {
   internal::SafeZeroMemory(ptr, size);
 }
 

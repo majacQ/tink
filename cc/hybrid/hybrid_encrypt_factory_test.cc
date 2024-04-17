@@ -16,8 +16,10 @@
 
 #include "tink/hybrid/hybrid_encrypt_factory.h"
 
+#include <string>
+#include <utility>
+
 #include "gtest/gtest.h"
-#include "tink/config.h"
 #include "tink/crypto_format.h"
 #include "tink/hybrid/hybrid_config.h"
 #include "tink/hybrid_encrypt.h"
@@ -28,7 +30,12 @@
 #include "proto/ecies_aead_hkdf.pb.h"
 #include "proto/tink.pb.h"
 
-using crypto::tink::TestKeysetHandle;
+namespace crypto {
+namespace tink {
+namespace {
+
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 using crypto::tink::test::AddRawKey;
 using crypto::tink::test::AddTinkKey;
 using google::crypto::tink::EciesAeadHkdfPublicKey;
@@ -38,10 +45,6 @@ using google::crypto::tink::HashType;
 using google::crypto::tink::KeyData;
 using google::crypto::tink::Keyset;
 using google::crypto::tink::KeyStatusType;
-
-namespace crypto {
-namespace tink {
-namespace {
 
 class HybridEncryptFactoryTest : public ::testing::Test {
 };
@@ -58,10 +61,10 @@ TEST_F(HybridEncryptFactoryTest, testBasic) {
   auto hybrid_encrypt_result = HybridEncryptFactory::GetPrimitive(
       *TestKeysetHandle::GetKeysetHandle(keyset));
   EXPECT_FALSE(hybrid_encrypt_result.ok());
-  EXPECT_EQ(util::error::INVALID_ARGUMENT,
-      hybrid_encrypt_result.status().error_code());
+  EXPECT_EQ(absl::StatusCode::kInvalidArgument,
+      hybrid_encrypt_result.status().code());
   EXPECT_PRED_FORMAT2(testing::IsSubstring, "at least one key",
-      hybrid_encrypt_result.status().error_message());
+                      std::string(hybrid_encrypt_result.status().message()));
 }
 
 TEST_F(HybridEncryptFactoryTest, testPrimitive) {
@@ -92,7 +95,7 @@ TEST_F(HybridEncryptFactoryTest, testPrimitive) {
   auto hybrid_encrypt_result = HybridEncryptFactory::GetPrimitive(
       *TestKeysetHandle::GetKeysetHandle(keyset));
   EXPECT_TRUE(hybrid_encrypt_result.ok()) << hybrid_encrypt_result.status();
-  auto hybrid_encrypt = std::move(hybrid_encrypt_result.ValueOrDie());
+  auto hybrid_encrypt = std::move(hybrid_encrypt_result.value());
 
   // Test the resulting HybridEncrypt-instance.
   std::string plaintext = "some plaintext";
@@ -101,6 +104,8 @@ TEST_F(HybridEncryptFactoryTest, testPrimitive) {
   auto encrypt_result = hybrid_encrypt->Encrypt(plaintext, context_info);
   EXPECT_TRUE(encrypt_result.ok()) << encrypt_result.status();
 }
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace
 }  // namespace tink

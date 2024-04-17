@@ -16,16 +16,19 @@
 #ifndef TINK_AEAD_AES_CTR_HMAC_AEAD_KEY_MANAGER_H_
 #define TINK_AEAD_AES_CTR_HMAC_AEAD_KEY_MANAGER_H_
 
+#include <stdint.h>
+
+#include <memory>
 #include <string>
 
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "tink/aead.h"
 #include "tink/core/key_type_manager.h"
-#include "tink/key_manager.h"
+#include "tink/core/template_util.h"
+#include "tink/input_stream.h"
+#include "tink/internal/fips_utils.h"
 #include "tink/util/constants.h"
-#include "tink/util/errors.h"
-#include "tink/util/protobuf_helper.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "proto/aes_ctr_hmac_aead.pb.h"
@@ -64,6 +67,10 @@ class AesCtrHmacAeadKeyManager
   crypto::tink::util::StatusOr<google::crypto::tink::AesCtrHmacAeadKey>
   CreateKey(const google::crypto::tink::AesCtrHmacAeadKeyFormat& key_format)
       const override;
+
+  crypto::tink::util::StatusOr<google::crypto::tink::AesCtrHmacAeadKey>
+  DeriveKey(const google::crypto::tink::AesCtrHmacAeadKeyFormat& key_format,
+            InputStream* input_stream) const override;
 
   internal::FipsCompatibility FipsStatus() const override {
     return internal::FipsCompatibility::kRequiresBoringCrypto;

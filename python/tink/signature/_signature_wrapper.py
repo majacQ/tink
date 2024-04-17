@@ -14,13 +14,7 @@
 
 """Public Key Sign wrapper."""
 
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
-
 from typing import Type
-from absl import logging
 
 from tink.proto import tink_pb2
 from tink import core
@@ -108,9 +102,8 @@ class _WrappedPublicKeyVerify(_public_key_verify.PublicKeyVerify):
           entry.primitive.verify(raw_sig, data)
         # Signature is valid, we can return
         return
-      except core.TinkError as err:
-        logging.info('signature prefix matches a key, but cannot verify: %s',
-                     err)
+      except core.TinkError:
+        pass
 
     # No matching key succeeded with verification, try all RAW keys
     for entry in self._primitive_set.raw_primitives():

@@ -11,24 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 // Package subtle provides subtle implementations of the AEAD primitive.
 package subtle
 
-import "fmt"
+import internalaead "github.com/google/tink/go/internal/aead"
 
 const (
-	maxInt = int(^uint(0) >> 1)
+	intSize = 32 << (^uint(0) >> 63) // 32 or 64
+	maxInt  = 1<<(intSize-1) - 1
 )
 
 // ValidateAESKeySize checks if the given key size is a valid AES key size.
 func ValidateAESKeySize(sizeInBytes uint32) error {
-	switch sizeInBytes {
-	case 16, 32:
-		return nil
-	default:
-		return fmt.Errorf("invalid AES key size; want 16 or 32, got %d", sizeInBytes)
-	}
+	return internalaead.ValidateAESKeySize(sizeInBytes)
 }

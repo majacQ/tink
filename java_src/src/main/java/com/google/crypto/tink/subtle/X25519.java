@@ -17,6 +17,8 @@
 package com.google.crypto.tink.subtle;
 
 import com.google.crypto.tink.annotations.Alpha;
+import com.google.crypto.tink.internal.Curve25519;
+import com.google.crypto.tink.internal.Field25519;
 import java.security.InvalidKeyException;
 import java.util.Arrays;
 
@@ -120,4 +122,6 @@ public final class X25519 {
     base[0] = 9;
     return computeSharedSecret(privateKey, base);
   }
+
+  private X25519() {}
 }

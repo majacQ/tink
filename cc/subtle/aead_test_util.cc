@@ -17,6 +17,11 @@
 
 #include <string>
 
+#include "absl/status/status.h"
+#include "absl/strings/cord.h"
+#include "absl/strings/string_view.h"
+#include "tink/aead.h"
+#include "tink/aead/cord_aead.h"
 #include "tink/subtle/test_util.h"
 #include "tink/util/status.h"
 
@@ -32,10 +37,10 @@ crypto::tink::util::Status EncryptThenDecrypt(const Aead& encrypter,
   StatusOr<std::string> encryption_or = encrypter.Encrypt(message, aad);
   if (!encryption_or.status().ok()) return encryption_or.status();
   StatusOr<std::string> decryption_or =
-      decrypter.Decrypt(encryption_or.ValueOrDie(), aad);
+      decrypter.Decrypt(encryption_or.value(), aad);
   if (!decryption_or.status().ok()) return decryption_or.status();
-  if (decryption_or.ValueOrDie() != message) {
-    return crypto::tink::util::Status(crypto::tink::util::error::INTERNAL,
+  if (decryption_or.value() != message) {
+    return crypto::tink::util::Status(absl::StatusCode::kInternal,
                                       "Message/Decryption mismatch");
   }
   return util::OkStatus();
@@ -51,10 +56,10 @@ crypto::tink::util::Status EncryptThenDecrypt(const CordAead& encrypter,
       encrypter.Encrypt(message_cord, aad_cord);
   if (!encryption_or.status().ok()) return encryption_or.status();
   StatusOr<absl::Cord> decryption_or =
-      decrypter.Decrypt(encryption_or.ValueOrDie(), aad_cord);
+      decrypter.Decrypt(encryption_or.value(), aad_cord);
   if (!decryption_or.status().ok()) return decryption_or.status();
-  if (decryption_or.ValueOrDie() != message) {
-    return crypto::tink::util::Status(crypto::tink::util::error::INTERNAL,
+  if (decryption_or.value() != message) {
+    return crypto::tink::util::Status(absl::StatusCode::kInternal,
                                       "Message/Decryption mismatch");
   }
   return util::OkStatus();

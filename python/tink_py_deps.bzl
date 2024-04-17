@@ -1,36 +1,41 @@
-"""
-Dependencies of Python Tink
-"""
+"""tink-py dependencies."""
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 def tink_py_deps():
-    """ Loads dependencies of Python Tink.
-    """
+    """Loads dependencies of tink-py."""
+    if not native.existing_rule("google_root_pem"):
+        http_file(
+            name = "google_root_pem",
+            executable = 0,
+            urls = ["https://pki.goog/roots.pem"],
+            sha256 = "1acf0d4780541758be2c0f998e1e0275232626ed3f8793d8e2fe8e2753750613",
+        )
 
     if not native.existing_rule("rules_python"):
-        # Commit from 2020-03-05
+        # Release from 2022-07-15
         http_archive(
             name = "rules_python",
-            strip_prefix = "rules_python-748aa53d7701e71101dfd15d800e100f6ff8e5d1",
-            url = "https://github.com/bazelbuild/rules_python/archive/748aa53d7701e71101dfd15d800e100f6ff8e5d1.zip",
-            sha256 = "d3e40ca3b7e00b72d2b1585e0b3396bcce50f0fc692e2b7c91d8b0dc471e3eaf",
+            sha256 = "a3a6e99f497be089f81ec082882e40246bfd435f52f4e82f37e89449b04573f6",
+            strip_prefix = "rules_python-0.10.2",
+            url = "https://github.com/bazelbuild/rules_python/archive/refs/tags/0.10.2.tar.gz",
         )
 
     if not native.existing_rule("pybind11"):
+        # Release from 2023-07-17
         http_archive(
             name = "pybind11",
             build_file = "@pybind11_bazel//:pybind11.BUILD",
-            strip_prefix = "pybind11-2.4.3",
-            urls = ["https://github.com/pybind/pybind11/archive/v2.4.3.tar.gz"],
-            sha256 = "1eed57bc6863190e35637290f97a20c81cfe4d9090ac0a24f3bbf08f265eb71d",
+            sha256 = "d475978da0cdc2d43b73f30910786759d593a9d8ee05b1b6846d1eb16c6d2e0c",
+            strip_prefix = "pybind11-2.11.1",
+            urls = ["https://github.com/pybind/pybind11/archive/v2.11.1.tar.gz"],
         )
 
     if not native.existing_rule("pybind11_bazel"):
-        # Commit from 2020-04-09
+        # Commit from 2024-01-17
         http_archive(
             name = "pybind11_bazel",
-            strip_prefix = "pybind11_bazel-34206c29f891dbd5f6f5face7b91664c2ff7185c",
-            url = "https://github.com/pybind/pybind11_bazel/archive/34206c29f891dbd5f6f5face7b91664c2ff7185c.zip",
-            sha256 = "8d0b776ea5b67891f8585989d54aa34869fc12f14bf33f1dc7459458dd222e95",
+            sha256 = "044d334a269e03edf4c7f8a3315d1dbf59177b8ddf1c38178bcc72cc73a93aba",
+            strip_prefix = "pybind11_bazel-2.11.1.bzl.1",
+            url = "https://github.com/pybind/pybind11_bazel/releases/download/v2.11.1.bzl.1/pybind11_bazel-2.11.1.bzl.1.zip",
         )

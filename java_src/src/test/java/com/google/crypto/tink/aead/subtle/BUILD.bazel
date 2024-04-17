@@ -1,23 +1,29 @@
 licenses(["notice"])
 
+# AesGcmSivTest is `manual` because we currently don't support running Conscrypt
+# with Bazel.
+
 java_test(
     name = "AesGcmSivTest",
-    size = "medium",
     srcs = ["AesGcmSivTest.java"],
-    data = [
-        "@wycheproof//testvectors:all",
-    ],
-    # This is disabled because we haven't figured out how to run Conscrypt
-    # with Bazel.
-    tags = ["manual"],
+    data = ["@wycheproof//testvectors:aes_gcm_siv"],
+    tags = ["notsan"],
     deps = [
+        "//src/main/java/com/google/crypto/tink:aead",
+        "//src/main/java/com/google/crypto/tink:insecure_secret_key_access",
+        "//src/main/java/com/google/crypto/tink/aead:aes_gcm_siv_key",
+        "//src/main/java/com/google/crypto/tink/aead:aes_gcm_siv_parameters",
         "//src/main/java/com/google/crypto/tink/aead/subtle:aes_gcm_siv",
+        "//src/main/java/com/google/crypto/tink/internal:util",
         "//src/main/java/com/google/crypto/tink/subtle:bytes",
         "//src/main/java/com/google/crypto/tink/subtle:hex",
         "//src/main/java/com/google/crypto/tink/subtle:random",
         "//src/main/java/com/google/crypto/tink/testing:test_util",
         "//src/main/java/com/google/crypto/tink/testing:wycheproof_test_util",
+        "//src/main/java/com/google/crypto/tink/util:secret_bytes",
+        "@maven//:com_google_code_findbugs_jsr305",
         "@maven//:com_google_code_gson_gson",
+        "@maven//:com_google_truth_truth",
         "@maven//:junit_junit",
         "@maven//:org_conscrypt_conscrypt_openjdk_uber",
     ],

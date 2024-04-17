@@ -16,12 +16,15 @@
 
 #include "tink/util/secret_proto.h"
 
+#include <string>
 #include <utility>
 
 #include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "tink/util/secret_data.h"
+#include "tink/util/statusor.h"
 #include "proto/test_proto.pb.h"
 
 namespace crypto {
@@ -128,6 +131,26 @@ TYPED_TEST(SecretProtoTest, MoveAssignment) {
   }
   // Test with source destroyed after the move
   EXPECT_TRUE(MessageDifferencer::Equals(*t, proto));
+}
+
+TYPED_TEST(SecretProtoTest, FromSecretData) {
+  TypeParam proto = CreateProto<TypeParam>();
+  SecretData data;
+  data.resize(proto.ByteSizeLong());
+  ASSERT_TRUE(proto.SerializeToArray(data.data(), data.size()));
+  StatusOr<SecretProto<TypeParam>> secret_proto =
+      SecretProto<TypeParam>::ParseFromSecretData(data);
+  ASSERT_TRUE(secret_proto.ok()) << secret_proto.status();
+  EXPECT_TRUE(MessageDifferencer::Equals(**secret_proto, proto));
+}
+
+TYPED_TEST(SecretProtoTest, AsSecretData) {
+  TypeParam proto = CreateProto<TypeParam>();
+  std::string serialized = proto.SerializeAsString();
+  SecretProto<TypeParam> secret_proto(proto);
+  StatusOr<SecretData> secret_serialized = secret_proto.SerializeAsSecretData();
+  ASSERT_TRUE(secret_serialized.ok()) << secret_serialized.status();
+  EXPECT_EQ(serialized, SecretDataAsStringView(*secret_serialized));
 }
 
 }  // namespace

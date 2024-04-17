@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC.
+// Copyright 2019 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #ifndef TINK_STREAMINGAEAD_SHARED_INPUT_STREAM_H_
 #define TINK_STREAMINGAEAD_SHARED_INPUT_STREAM_H_
+
+#include <cstdint>
 
 #include "tink/input_stream.h"
 #include "tink/util/statusor.h"
@@ -35,7 +37,7 @@ class SharedInputStream : public crypto::tink::InputStream {
       crypto::tink::InputStream* input_stream)
       : input_stream_(input_stream) {}
 
-  ~SharedInputStream() override {}
+  ~SharedInputStream() override = default;
 
   crypto::tink::util::StatusOr<int> Next(const void** data) override {
     return input_stream_->Next(data);

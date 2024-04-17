@@ -1,15 +1,17 @@
-cmake_minimum_required(VERSION 3.5)
-project(Tink CXX)
-
-# Deviate from the naming convention for consistency with tink_version.bzl.
-include(tink_version.cmake)
+cmake_minimum_required(VERSION 3.13)
+project(Tink VERSION 2.1.2 LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(TINK_BUILD_TESTS "Build Tink tests" OFF)
+option(TINK_USE_SYSTEM_OPENSSL "Build Tink linking to OpenSSL installed in the system" OFF)
+option(TINK_USE_INSTALLED_ABSEIL "Build Tink linking to Abseil installed in the system" OFF)
+option(TINK_USE_INSTALLED_GOOGLETEST "Build Tink linking to GTest installed in the system" OFF)
+option(TINK_USE_INSTALLED_PROTOBUF "Build Tink linking to Protobuf installed in the system" OFF)
+option(USE_ONLY_FIPS "Enables the FIPS only mode in Tink" OFF)
 
 set(CPACK_GENERATOR TGZ)
-set(CPACK_PACKAGE_VERSION ${TINK_VERSION_LABEL})
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 
 include(CPack)
 include(TinkWorkspace)

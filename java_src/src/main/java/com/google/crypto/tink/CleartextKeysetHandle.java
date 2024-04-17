@@ -16,11 +16,13 @@
 
 package com.google.crypto.tink;
 
+import com.google.crypto.tink.monitoring.MonitoringAnnotations;
 import com.google.crypto.tink.proto.Keyset;
 import com.google.protobuf.ExtensionRegistryLite;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.Map;
 
 /**
  * Static methods for reading or writing cleartext keysets.
@@ -36,8 +38,10 @@ public final class CleartextKeysetHandle {
   /**
    * @return a new {@link KeysetHandle} from {@code serialized} that is a serialized {@link Keyset}
    * @throws GeneralSecurityException
-   * @deprecated use {@link #read} instead
+   * @deprecated Call {@code TinkProtoKeysetFormat.parseKeyset(serialized,
+   *     InsecureSecretKeyAccess.get())} which has the same semantics.
    */
+  @SuppressWarnings("UnusedException")
   @Deprecated
   public static final KeysetHandle parseFrom(final byte[] serialized)
       throws GeneralSecurityException {
@@ -51,7 +55,7 @@ public final class CleartextKeysetHandle {
 
   /**
    * @return a new {@link KeysetHandle} from a {@link Keyset} read with {@code reader}.
-   * @throws GeneralSecurityException
+   * @throws GeneralSecurityException when the keyset is invalid or can't be read.
    */
   public static KeysetHandle read(KeysetReader reader)
       throws GeneralSecurityException, IOException {
@@ -59,13 +63,38 @@ public final class CleartextKeysetHandle {
   }
 
   /**
-   * @return the keyset underlying this {@code keysetHandle}.
+   * Creates a {@link KeysetHandle} from a {@code KeysetReader}.
+   *
+   * <p>The additional {@code monitoringAnnotations} are used for monitoring, and will be passed to
+   * the {@link MonitoringClient}.
+   *
+   * @throws GeneralSecurityException when the keyset is invalid or cannot be read.
+   * @deprecated Instead, use a {@link KeysetHandle.Builder}.
    */
+  @Deprecated
+  public static KeysetHandle read(
+      KeysetReader reader, Map<String, String> monitoringAnnotations)
+      throws GeneralSecurityException, IOException {
+    return KeysetHandle.fromKeysetAndAnnotations(
+        reader.read(), MonitoringAnnotations.newBuilder().addAll(monitoringAnnotations).build());
+  }
+
+  /**
+   * @return the keyset underlying this {@code keysetHandle}.
+   * @deprecated Instead, call "KeysetHandle.getAt()" to get information about individual keys or
+   *     TinkProtoKeysetFormat if you need a serialized keyset.
+   */
+  @Deprecated
   public static Keyset getKeyset(KeysetHandle keysetHandle) {
     return keysetHandle.getKeyset();
   }
 
-  /** Returns a KeysetHandle for {@code keyset}. */
+  /**
+   * Returns a KeysetHandle for {@code keyset}.
+   *
+   * @deprecated Instead, use a {@link KeysetHandle.Builder}.
+   */
+  @Deprecated
   public static KeysetHandle fromKeyset(Keyset keyset) throws GeneralSecurityException {
     return KeysetHandle.fromKeyset(keyset);
   }
@@ -78,4 +107,6 @@ public final class CleartextKeysetHandle {
   public static void write(KeysetHandle handle, KeysetWriter keysetWriter) throws IOException {
     keysetWriter.write(handle.getKeyset());
   }
+
+  private CleartextKeysetHandle() {}
 }

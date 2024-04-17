@@ -14,8 +14,8 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_CONFIG_INTERNAL_FIPS_UTILS_H_
-#define TINK_CONFIG_INTERNAL_FIPS_UTILS_H_
+#ifndef TINK_INTERNAL_FIPS_UTILS_H_
+#define TINK_INTERNAL_FIPS_UTILS_H_
 
 #include "absl/base/attributes.h"
 #include "tink/util/status.h"
@@ -33,6 +33,9 @@ ABSL_CONST_INIT extern const bool kUseOnlyFips;
 // This function will return true if Tink has been built in FIPS mode or if
 // the FIPS restrictions have been enabled at runtime.
 bool IsFipsModeEnabled();
+
+// Returns true if the Ssl layer (BoringSSL or OpenSSL) has FIPS mode enabled.
+bool IsFipsEnabledInSsl();
 
 // Enable FIPS restrictions. If Tink has been built in FIPS mode this is
 // redundant.
@@ -70,4 +73,4 @@ crypto::tink::util::Status CheckFipsCompatibility() {
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_CONFIG_INTERNAL__FIPS_UTILS_H_
+#endif  // TINK_INTERNAL_FIPS_UTILS_H_

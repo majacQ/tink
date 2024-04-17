@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package subtle
 
@@ -50,6 +48,9 @@ func NewECDSAVerifier(hashAlg string, curve string, encoding string, x []byte, y
 func NewECDSAVerifierFromPublicKey(hashAlg string, encoding string, publicKey *ecdsa.PublicKey) (*ECDSAVerifier, error) {
 	if publicKey.Curve == nil {
 		return nil, errors.New("ecdsa_verifier: invalid curve")
+	}
+	if !publicKey.Curve.IsOnCurve(publicKey.X, publicKey.Y) {
+		return nil, fmt.Errorf("ecdsa_verifier: invalid public key")
 	}
 	curve := subtle.ConvertCurveName(publicKey.Curve.Params().Name)
 	if err := ValidateECDSAParams(hashAlg, curve, encoding); err != nil {

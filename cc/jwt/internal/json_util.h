@@ -14,10 +14,13 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_JWT_INTERNAL_JWT_UTIL_H_
-#define TINK_JWT_INTERNAL_JWT_UTIL_H_
+#ifndef TINK_JWT_INTERNAL_JSON_UTIL_H_
+#define TINK_JWT_INTERNAL_JSON_UTIL_H_
+
+#include <string>
 
 #include "google/protobuf/struct.pb.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
@@ -42,4 +45,4 @@ util::StatusOr<std::string> ProtoListToJsonString(
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_JWT_INTERNAL_JWT_UTIL_H_
+#endif  // TINK_JWT_INTERNAL_JSON_UTIL_H_

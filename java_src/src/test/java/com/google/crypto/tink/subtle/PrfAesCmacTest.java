@@ -16,11 +16,17 @@
 
 package com.google.crypto.tink.subtle;
 
+import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertThrows;
 
+import com.google.crypto.tink.InsecureSecretKeyAccess;
 import com.google.crypto.tink.Mac;
 import com.google.crypto.tink.config.TinkFips;
+import com.google.crypto.tink.prf.AesCmacPrfKey;
+import com.google.crypto.tink.prf.AesCmacPrfParameters;
+import com.google.crypto.tink.prf.Prf;
+import com.google.crypto.tink.util.SecretBytes;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.util.Arrays;
@@ -127,9 +133,12 @@ public class PrfAesCmacTest {
     // Test with random keys.
     for (MacTestVector t : CMAC_TEST_VECTORS) {
       Mac mac = new PrfMac(new PrfAesCmac(Random.randBytes(t.key.length)), t.tag.length);
-      for (int j = 1; j < t.tag.length; j++) {
-        byte[] modifiedTag = Arrays.copyOf(t.tag, t.tag.length - j);
-        assertThrows(GeneralSecurityException.class, () -> mac.verifyMac(modifiedTag, t.message));
+      for (int b = 0; b < t.message.length; b++) {
+        for (int bit = 0; bit < 8; bit++) {
+          byte[] modifiedMessage = Arrays.copyOf(t.message, t.message.length);
+          modifiedMessage[b] = (byte) (modifiedMessage[b] ^ (1 << bit));
+          assertThrows(GeneralSecurityException.class, () -> mac.verifyMac(t.tag, modifiedMessage));
+        }
       }
     }
   }
@@ -177,5 +186,20 @@ public class PrfAesCmacTest {
     assertThrows(
         InvalidAlgorithmParameterException.class,
         () -> new PrfMac(new PrfAesCmac(Random.randBytes(16)), 17));
+  }
+
+  @Test
+  public void createWithAesCmacPrfKey_equivalentToByteArray() throws Exception {
+    Assume.assumeFalse(TinkFips.useOnlyFips());
+    for (MacTestVector t : CMAC_TEST_VECTORS) {
+      Prf aesCmacPrfKeyPrf =
+          PrfAesCmac.create(
+              AesCmacPrfKey.create(
+                  AesCmacPrfParameters.create(t.key.length),
+                  SecretBytes.copyFrom(t.key, InsecureSecretKeyAccess.get())));
+      Prf byteArrayPrf = new PrfAesCmac(t.key);
+      assertThat(aesCmacPrfKeyPrf.compute(t.message, t.tag.length))
+          .isEqualTo(byteArrayPrf.compute(t.message, t.tag.length));
+    }
   }
 }

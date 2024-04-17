@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package mac
 
@@ -20,7 +18,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/mac/subtle"
 	"github.com/google/tink/go/subtle/random"
@@ -39,13 +37,8 @@ var errInvalidCMACKeyFormat = errors.New("aes_cmac_key_manager: invalid key form
 // cmacKeyManager generates new AES-CMAC keys and produces new instances of AES-CMAC.
 type aescmacKeyManager struct{}
 
-// newAESCMACKeyManager returns a new aescmacKeyManager.
-func newAESCMACKeyManager() *aescmacKeyManager {
-	return new(aescmacKeyManager)
-}
-
 // Primitive constructs a AES-CMAC instance for the given serialized CMACKey.
-func (km *aescmacKeyManager) Primitive(serializedKey []byte) (interface{}, error) {
+func (km *aescmacKeyManager) Primitive(serializedKey []byte) (any, error) {
 	if len(serializedKey) == 0 {
 		return nil, errInvalidCMACKey
 	}
@@ -56,7 +49,7 @@ func (km *aescmacKeyManager) Primitive(serializedKey []byte) (interface{}, error
 	if err := km.validateKey(key); err != nil {
 		return nil, err
 	}
-	cmac, err := subtle.NewAESCMAC( key.KeyValue, key.Params.TagSize)
+	cmac, err := subtle.NewAESCMAC(key.KeyValue, key.GetParams().GetTagSize())
 	if err != nil {
 		return nil, err
 	}
@@ -120,13 +113,10 @@ func (km *aescmacKeyManager) validateKey(key *cmacpb.AesCmacKey) error {
 		return fmt.Errorf("aes_cmac_key_manager: invalid version: %s", err)
 	}
 	keySize := uint32(len(key.KeyValue))
-	return subtle.ValidateCMACParams(keySize, key.Params.TagSize)
+	return subtle.ValidateCMACParams(keySize, key.GetParams().GetTagSize())
 }
 
 // validateKeyFormat validates the given AesCmacKeyFormat
 func (km *aescmacKeyManager) validateKeyFormat(format *cmacpb.AesCmacKeyFormat) error {
-	if format.Params == nil {
-		return fmt.Errorf("null AES-CMAC params")
-	}
-	return subtle.ValidateCMACParams(format.KeySize, format.Params.TagSize)
+	return subtle.ValidateCMACParams(format.KeySize, format.GetParams().GetTagSize())
 }

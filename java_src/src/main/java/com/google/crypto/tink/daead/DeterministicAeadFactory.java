@@ -18,7 +18,6 @@ package com.google.crypto.tink.daead;
 
 import com.google.crypto.tink.DeterministicAead;
 import com.google.crypto.tink.KeysetHandle;
-import com.google.crypto.tink.Registry;
 import java.security.GeneralSecurityException;
 
 /**
@@ -40,14 +39,15 @@ import java.security.GeneralSecurityException;
 public final class DeterministicAeadFactory {
   /**
    * @return a DeterministicAead primitive from a {@code keysetHandle}.
-   * @throws GeneralSecurityException
    * @deprecated Use {@code keysetHandle.GetPrimitive(DeterministicAead.class)} after registering
    *     the {@code DeterministicAeadWrapper} instead.
    */
   @Deprecated
   public static DeterministicAead getPrimitive(KeysetHandle keysetHandle)
       throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new DeterministicAeadWrapper());
+    DeterministicAeadWrapper.register();
     return keysetHandle.getPrimitive(DeterministicAead.class);
   }
+
+  private DeterministicAeadFactory() {}
 }

@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 // Package streamingaead provides implementations of the streaming AEAD primitive.
 //
@@ -24,14 +22,18 @@ import (
 	"fmt"
 
 	"github.com/google/tink/go/core/registry"
+	"github.com/google/tink/go/internal/internalregistry"
 )
 
 func init() {
-	if err := registry.RegisterKeyManager(&aesGCMHKDFKeyManager{}); err != nil {
+	if err := registry.RegisterKeyManager(new(aesGCMHKDFKeyManager)); err != nil {
+		panic(fmt.Sprintf("streamingaead.init() failed: %v", err))
+	}
+	if err := internalregistry.AllowKeyDerivation(aesGCMHKDFTypeURL); err != nil {
 		panic(fmt.Sprintf("streamingaead.init() failed: %v", err))
 	}
 
-	if err := registry.RegisterKeyManager(&aesCTRHMACKeyManager{}); err != nil {
+	if err := registry.RegisterKeyManager(new(aesCTRHMACKeyManager)); err != nil {
 		panic(fmt.Sprintf("streamingaead.init() failed: %v", err))
 	}
 }

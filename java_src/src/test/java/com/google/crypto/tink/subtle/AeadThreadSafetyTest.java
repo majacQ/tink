@@ -159,21 +159,21 @@ public class AeadThreadSafetyTest {
     // if we do this multithreaded, there is a potential for a race in case we call encrypt
     // for the first time at the same time in multiple threads. To get around this, we first encrypt
     // an empty plaintext here.
-    cipher.encrypt(new byte[0]);
+    Object unused = cipher.encrypt(new byte[0]);
 
     Aead aesCtrHmac = new EncryptThenAuthenticate(cipher, mac, macSize);
     testEncryptionDecryption(aesCtrHmac, 5, 128, 20);
   }
 
   @Test
-  public void testChaChaPoly1305() throws Exception {
+  public void testChaCha20Poly1305() throws Exception {
     byte[] key = Random.randBytes(32);
     Aead cipher = new ChaCha20Poly1305(key);
     testEncryptionDecryption(cipher, 5, 128, 20);
   }
 
   @Test
-  public void testXChaChaPoly1305() throws Exception {
+  public void testXChaCha20Poly1305() throws Exception {
     byte[] key = Random.randBytes(32);
     Aead cipher = new XChaCha20Poly1305(key);
     testEncryptionDecryption(cipher, 5, 128, 20);

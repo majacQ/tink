@@ -18,13 +18,16 @@
 
 #include <list>
 #include <sstream>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
-#include "tink/config.h"
+#include "absl/status/status.h"
+#include "tink/config/global_registry.h"
 #include "tink/config/tink_fips.h"
 #include "tink/keyset_handle.h"
+#include "tink/primitive_set.h"
 #include "tink/registry.h"
 #include "tink/streaming_aead.h"
 #include "tink/streamingaead/aes_ctr_hmac_streaming_key_manager.h"
@@ -33,6 +36,7 @@
 #include "tink/util/status.h"
 #include "tink/util/test_matchers.h"
 #include "tink/util/test_util.h"
+#include "proto/tink.pb.h"
 
 namespace crypto {
 namespace tink {
@@ -55,11 +59,11 @@ TEST_F(StreamingAeadConfigTest, Basic) {
   EXPECT_THAT(Registry::get_key_manager<StreamingAead>(
                   AesGcmHkdfStreamingKeyManager().get_key_type())
                   .status(),
-              StatusIs(util::error::NOT_FOUND));
+              StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(Registry::get_key_manager<StreamingAead>(
                   AesCtrHmacStreamingKeyManager().get_key_type())
                   .status(),
-              StatusIs(util::error::NOT_FOUND));
+              StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(StreamingAeadConfig::Register(), IsOk());
   EXPECT_THAT(Registry::get_key_manager<StreamingAead>(
                   AesGcmHkdfStreamingKeyManager().get_key_type())
@@ -90,7 +94,7 @@ TEST_F(StreamingAeadConfigTest, WrappersRegistered) {
           primitive_set
               ->AddPrimitive(absl::make_unique<DummyStreamingAead>("dummy"),
                              key_info)
-              .ValueOrDie()),
+              .value()),
       IsOk());
 
   auto primitive_result = Registry::Wrap(std::move(primitive_set));
@@ -119,8 +123,10 @@ TEST_F(StreamingAeadConfigTest, RegisterNonFipsTemplates) {
       StreamingAeadKeyTemplates::Aes256GcmHkdf4KB());
 
   for (auto key_template : non_fips_key_templates) {
-    EXPECT_THAT(KeysetHandle::GenerateNew(key_template).status(),
-                StatusIs(util::error::NOT_FOUND));
+    EXPECT_THAT(
+        KeysetHandle::GenerateNew(key_template, KeyGenConfigGlobalRegistry())
+            .status(),
+        StatusIs(absl::StatusCode::kNotFound));
   }
 }
 

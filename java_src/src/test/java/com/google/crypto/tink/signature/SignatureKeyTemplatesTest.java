@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,11 @@
 
 package com.google.crypto.tink.signature;
 
+import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.google.crypto.tink.TinkProtoParametersFormat;
 import com.google.crypto.tink.proto.EcdsaKeyFormat;
 import com.google.crypto.tink.proto.EcdsaSignatureEncoding;
 import com.google.crypto.tink.proto.EllipticCurveType;
@@ -29,17 +31,26 @@ import com.google.crypto.tink.proto.RsaSsaPkcs1KeyFormat;
 import com.google.crypto.tink.proto.RsaSsaPssKeyFormat;
 import com.google.protobuf.ExtensionRegistryLite;
 import java.math.BigInteger;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.theories.DataPoints;
+import org.junit.experimental.theories.FromDataPoints;
+import org.junit.experimental.theories.Theories;
+import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 
 /** Tests for SignatureKeyTemplates. */
-@RunWith(JUnit4.class)
+@RunWith(Theories.class)
 public class SignatureKeyTemplatesTest {
+  @BeforeClass
+  public static void setUp() throws Exception {
+    SignatureConfig.register();
+  }
+
   @Test
-  public void testECDSA_P256() throws Exception {
+  public void ecdsaP256() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ECDSA_P256;
-    assertEquals(new EcdsaSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(EcdsaSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     EcdsaKeyFormat format =
         EcdsaKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -51,9 +62,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testECDSA_P256_IEEE_P1363() throws Exception {
+  public void ecdsaP256Ieee() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ECDSA_P256_IEEE_P1363;
-    assertEquals(new EcdsaSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(EcdsaSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     EcdsaKeyFormat format =
         EcdsaKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -65,9 +76,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testECDSA_P256_IEEE_P1363_WITHOUT_PREFIX() throws Exception {
+  public void ecdsaP256IeeeWithoutPrefix() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ECDSA_P256_IEEE_P1363_WITHOUT_PREFIX;
-    assertEquals(new EcdsaSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(EcdsaSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.RAW, template.getOutputPrefixType());
     EcdsaKeyFormat format =
         EcdsaKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -79,9 +90,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testECDSA_P384() throws Exception {
+  public void ecdsaP384() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ECDSA_P384;
-    assertEquals(new EcdsaSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(EcdsaSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     EcdsaKeyFormat format =
         EcdsaKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -93,9 +104,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testECDSA_P384_IEEE_P1363() throws Exception {
+  public void ecdsaP384Ieee() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ECDSA_P384_IEEE_P1363;
-    assertEquals(new EcdsaSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(EcdsaSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     EcdsaKeyFormat format =
         EcdsaKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -107,9 +118,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testECDSA_P521_IEEE_P1363() throws Exception {
+  public void ecdsaP521Ieee() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ECDSA_P521_IEEE_P1363;
-    assertEquals(new EcdsaSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(EcdsaSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     EcdsaKeyFormat format =
         EcdsaKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -121,7 +132,7 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testCreateEcdsaKeyTemplate() throws Exception {
+  public void createEcdsaKeyTemplate() throws Exception {
     // Intentionally using "weird" or invalid values for parameters,
     // to test that the function correctly puts them in the resulting template.
     HashType hashType = HashType.SHA512;
@@ -130,7 +141,7 @@ public class SignatureKeyTemplatesTest {
     OutputPrefixType prefixType = OutputPrefixType.TINK;
     KeyTemplate template =
         SignatureKeyTemplates.createEcdsaKeyTemplate(hashType, curve, encoding, prefixType);
-    assertEquals(new EcdsaSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(EcdsaSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
 
     EcdsaKeyFormat format =
@@ -141,25 +152,25 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testED25519() throws Exception {
+  public void ed25519() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ED25519;
-    assertEquals(new Ed25519PrivateKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(Ed25519PrivateKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     assertTrue(template.getValue().isEmpty()); // Empty format.
   }
 
   @Test
-  public void testED25519WithRawOutput() throws Exception {
+  public void ed25519WithRawOutput() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.ED25519WithRawOutput;
-    assertEquals(new Ed25519PrivateKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(Ed25519PrivateKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.RAW, template.getOutputPrefixType());
     assertTrue(template.getValue().isEmpty()); // Empty format.
   }
 
   @Test
-  public void testRSA_SSA_PKCS1_3072_SHA256_F4() throws Exception {
+  public void rsaSsaPkcs1_3072() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.RSA_SSA_PKCS1_3072_SHA256_F4;
-    assertEquals(new RsaSsaPkcs1SignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(RsaSsaPkcs1SignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     RsaSsaPkcs1KeyFormat format =
         RsaSsaPkcs1KeyFormat.parseFrom(
@@ -173,9 +184,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testRSA_SSA_PKCS1_4096_SHA512_F4() throws Exception {
+  public void rsaSsaPkcs1_4096() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.RSA_SSA_PKCS1_4096_SHA512_F4;
-    assertEquals(new RsaSsaPkcs1SignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(RsaSsaPkcs1SignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     RsaSsaPkcs1KeyFormat format =
         RsaSsaPkcs1KeyFormat.parseFrom(
@@ -189,9 +200,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testRSA_SSA_PSS_3072_SHA256_SHA256_32_F4() throws Exception {
+  public void rsaSsaPss3072() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.RSA_SSA_PSS_3072_SHA256_SHA256_32_F4;
-    assertEquals(new RsaSsaPssSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(RsaSsaPssSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     RsaSsaPssKeyFormat format =
         RsaSsaPssKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -206,9 +217,9 @@ public class SignatureKeyTemplatesTest {
   }
 
   @Test
-  public void testRSA_SSA_PSS_4096_SHA512_SHA512_64_F4() throws Exception {
+  public void rsaSsaPss4096() throws Exception {
     KeyTemplate template = SignatureKeyTemplates.RSA_SSA_PSS_4096_SHA512_SHA512_64_F4;
-    assertEquals(new RsaSsaPssSignKeyManager().getKeyType(), template.getTypeUrl());
+    assertEquals(RsaSsaPssSignKeyManager.getKeyType(), template.getTypeUrl());
     assertEquals(OutputPrefixType.TINK, template.getOutputPrefixType());
     RsaSsaPssKeyFormat format =
         RsaSsaPssKeyFormat.parseFrom(template.getValue(), ExtensionRegistryLite.getEmptyRegistry());
@@ -220,5 +231,60 @@ public class SignatureKeyTemplatesTest {
     assertEquals(4096, format.getModulusSizeInBits());
     assertEquals(
         BigInteger.valueOf(65537), new BigInteger(1, format.getPublicExponent().toByteArray()));
+  }
+
+  public static class Pair {
+    public Pair(KeyTemplate template, SignatureParameters parameters) {
+      this.template = template;
+      this.parameters = parameters;
+    }
+
+    KeyTemplate template;
+    SignatureParameters parameters;
+  }
+
+  @DataPoints("EquivalentPairs")
+  public static final Pair[] TEMPLATES =
+      new Pair[] {
+        new Pair(SignatureKeyTemplates.ECDSA_P256, PredefinedSignatureParameters.ECDSA_P256),
+        new Pair(SignatureKeyTemplates.ECDSA_P384, PredefinedSignatureParameters.ECDSA_P384),
+        new Pair(SignatureKeyTemplates.ECDSA_P521, PredefinedSignatureParameters.ECDSA_P521),
+        new Pair(
+            SignatureKeyTemplates.ECDSA_P256_IEEE_P1363,
+            PredefinedSignatureParameters.ECDSA_P256_IEEE_P1363),
+        new Pair(
+            SignatureKeyTemplates.ECDSA_P384_IEEE_P1363,
+            PredefinedSignatureParameters.ECDSA_P384_IEEE_P1363),
+        new Pair(
+            SignatureKeyTemplates.ECDSA_P256_IEEE_P1363_WITHOUT_PREFIX,
+            PredefinedSignatureParameters.ECDSA_P256_IEEE_P1363_WITHOUT_PREFIX),
+        new Pair(
+            SignatureKeyTemplates.ECDSA_P521_IEEE_P1363,
+            PredefinedSignatureParameters.ECDSA_P521_IEEE_P1363),
+        new Pair(SignatureKeyTemplates.ED25519, PredefinedSignatureParameters.ED25519),
+        new Pair(
+            SignatureKeyTemplates.ED25519WithRawOutput,
+            PredefinedSignatureParameters.ED25519WithRawOutput),
+        new Pair(
+            SignatureKeyTemplates.RSA_SSA_PKCS1_3072_SHA256_F4,
+            PredefinedSignatureParameters.RSA_SSA_PKCS1_3072_SHA256_F4),
+        new Pair(
+            SignatureKeyTemplates.RSA_SSA_PKCS1_3072_SHA256_F4_WITHOUT_PREFIX,
+            PredefinedSignatureParameters.RSA_SSA_PKCS1_3072_SHA256_F4_WITHOUT_PREFIX),
+        new Pair(
+            SignatureKeyTemplates.RSA_SSA_PKCS1_4096_SHA512_F4,
+            PredefinedSignatureParameters.RSA_SSA_PKCS1_4096_SHA512_F4),
+        new Pair(
+            SignatureKeyTemplates.RSA_SSA_PSS_3072_SHA256_SHA256_32_F4,
+            PredefinedSignatureParameters.RSA_SSA_PSS_3072_SHA256_SHA256_32_F4),
+        new Pair(
+            SignatureKeyTemplates.RSA_SSA_PSS_4096_SHA512_SHA512_64_F4,
+            PredefinedSignatureParameters.RSA_SSA_PSS_4096_SHA512_SHA512_64_F4),
+      };
+
+  @Theory
+  public void testParametersEqualsKeyTemplate(@FromDataPoints("EquivalentPairs") Pair p)
+      throws Exception {
+    assertThat(TinkProtoParametersFormat.parse(p.template.toByteArray())).isEqualTo(p.parameters);
   }
 }

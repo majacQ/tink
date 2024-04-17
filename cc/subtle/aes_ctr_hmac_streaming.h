@@ -17,13 +17,16 @@
 #ifndef TINK_SUBTLE_AES_CTR_HMAC_STREAMING_H_
 #define TINK_SUBTLE_AES_CTR_HMAC_STREAMING_H_
 
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
 #include "openssl/evp.h"
-#include "tink/mac.h"
 #include "tink/internal/fips_utils.h"
+#include "tink/mac.h"
 #include "tink/subtle/common_enums.h"
 #include "tink/subtle/nonce_based_streaming_aead.h"
 #include "tink/subtle/stream_segment_decrypter.h"
@@ -181,7 +184,7 @@ class AesCtrHmacStreamSegmentDecrypter : public StreamSegmentDecrypter {
     return ciphertext_segment_size_;
   }
   int get_ciphertext_offset() const override { return ciphertext_offset_; }
-  ~AesCtrHmacStreamSegmentDecrypter() override {}
+  ~AesCtrHmacStreamSegmentDecrypter() override = default;
 
  private:
   AesCtrHmacStreamSegmentDecrypter(util::SecretData ikm, HashType hkdf_algo,

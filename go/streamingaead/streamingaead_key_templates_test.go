@@ -11,25 +11,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package streamingaead_test
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/streamingaead"
-	"github.com/google/tink/go/testutil"
 	tinkpb "github.com/google/tink/go/proto/tink_go_proto"
 )
 
 func TestKeyTemplates(t *testing.T) {
-	testutil.SkipTestIfTestSrcDirIsNotSet(t)
 	var testCases = []struct {
 		name     string
 		template *tinkpb.KeyTemplate
@@ -67,13 +62,6 @@ func TestKeyTemplates(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			want, err := testutil.KeyTemplateProto("streamingaead", tc.name)
-			if err != nil {
-				t.Fatalf(err.Error())
-			}
-			if !proto.Equal(want, tc.template) {
-				t.Errorf("template %s is not equal to '%s'", tc.name, tc.template)
-			}
 			handle, err := keyset.NewHandle(tc.template)
 			if err != nil {
 				t.Fatalf("keyset.NewHandle(template) failed: %v", err)
@@ -101,9 +89,9 @@ func TestKeyTemplates(t *testing.T) {
 			if err != nil {
 				t.Fatalf("primitive.NewDecryptingReader(buf, aad) failed: %v", err)
 			}
-			decrypted, err := ioutil.ReadAll(r)
+			decrypted, err := io.ReadAll(r)
 			if err != nil {
-				t.Fatalf("ioutil.ReadAll(r) failed: %v", err)
+				t.Fatalf("io.ReadAll(r) failed: %v", err)
 			}
 			if !bytes.Equal(decrypted, plaintext) {
 				t.Errorf("decrypted data doesn't match plaintext, got: %q, want: ''", decrypted)

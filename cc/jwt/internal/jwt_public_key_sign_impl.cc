@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC.
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,9 +18,16 @@
 
 #include <string>
 
+#include "absl/status/status.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "tink/jwt/internal/jwt_format.h"
+#include "tink/jwt/raw_jwt.h"
+#include "tink/util/status.h"
+#include "tink/util/statusor.h"
 
 namespace crypto {
 namespace tink {
@@ -38,7 +45,7 @@ util::StatusOr<std::string> JwtPublicKeySignImpl::SignAndEncodeWithKid(
   }
   if (custom_kid_.has_value()) {
     if (kid.has_value()) {
-      return util::Status(util::error::INVALID_ARGUMENT,
+      return util::Status(absl::StatusCode::kInvalidArgument,
                           "TINK keys are not allowed to have a kid value set.");
     }
     kid = *custom_kid_;
@@ -48,18 +55,18 @@ util::StatusOr<std::string> JwtPublicKeySignImpl::SignAndEncodeWithKid(
   if (!encoded_header.ok()) {
     return encoded_header.status();
   }
-  util::StatusOr<std::string> payload_or = token.GetJsonPayload();
-  if (!payload_or.ok()) {
-    return payload_or.status();
+  util::StatusOr<std::string> payload = token.GetJsonPayload();
+  if (!payload.ok()) {
+    return payload.status();
   }
-  std::string encoded_payload = EncodePayload(payload_or.ValueOrDie());
+  std::string encoded_payload = EncodePayload(*payload);
   std::string unsigned_token =
       absl::StrCat(*encoded_header, ".", encoded_payload);
-  util::StatusOr<std::string> tag_or = sign_->Sign(unsigned_token);
-  if (!tag_or.ok()) {
-    return tag_or.status();
+  util::StatusOr<std::string> tag = sign_->Sign(unsigned_token);
+  if (!tag.ok()) {
+    return tag.status();
   }
-  std::string encoded_tag = EncodeSignature(tag_or.ValueOrDie());
+  std::string encoded_tag = EncodeSignature(*tag);
   return absl::StrCat(unsigned_token, ".", encoded_tag);
 }
 

@@ -19,9 +19,11 @@ Currently, the following set of binary wheels are published:
 *   Linux
     *   Python 3.7
     *   Python 3.8
+    *   Python 3.9
 *   macOS
     *   Python 3.7
     *   Python 3.8
+    *   Python 3.9
 
 In addition to the binary wheels, a source distribution is also published. If
 `pip` does not find a suitable binary wheel for your environment, it will fall
@@ -280,13 +282,13 @@ mac.register()
 keyset_handle = tink.new_keyset_handle(mac.mac_key_templates.HMAC_SHA256_128BITTAG)
 
 # 2. Get the primitive.
-mac = keyset_handle.primitive(mac.Mac)
+mac_primitive = keyset_handle.primitive(mac.Mac)
 
 # 3. Use the primitive to compute a tag,
-tag = mac.compute_mac(data)
+tag = mac_primitive.compute_mac(data)
 
 # ... or to verify a tag.
-mac.verify_mac(tag, data)
+mac_primitive.verify_mac(tag, data)
 ```
 
 ### Hybrid Encryption

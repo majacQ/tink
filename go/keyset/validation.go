@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package keyset
 
@@ -43,7 +41,6 @@ func Validate(keyset *tinkpb.Keyset) error {
 	}
 	primaryKeyID := keyset.PrimaryKeyId
 	hasPrimaryKey := false
-	containsOnlyPub := true
 	numEnabledKeys := 0
 	for _, key := range keyset.Key {
 		if err := validateKey(key); err != nil {
@@ -58,16 +55,13 @@ func Validate(keyset *tinkpb.Keyset) error {
 			}
 			hasPrimaryKey = true
 		}
-		if key.KeyData.KeyMaterialType != tinkpb.KeyData_ASYMMETRIC_PUBLIC {
-			containsOnlyPub = false
-		}
 		numEnabledKeys++
 	}
 	if numEnabledKeys == 0 {
 		return fmt.Errorf("keyset must contain at least one ENABLED key")
 	}
 
-	if !hasPrimaryKey && !containsOnlyPub {
+	if !hasPrimaryKey {
 		return fmt.Errorf("keyset does not contain a valid primary key")
 	}
 	return nil
@@ -80,9 +74,6 @@ Returns nil if it is valid; an error otherwise.
 func validateKey(key *tinkpb.Keyset_Key) error {
 	if key == nil {
 		return fmt.Errorf("ValidateKey() called with nil")
-	}
-	if key.KeyId == 0 {
-		return fmt.Errorf("key has zero key id: %d", key.KeyId)
 	}
 	if key.KeyData == nil {
 		return fmt.Errorf("key %d has no key data", key.KeyId)

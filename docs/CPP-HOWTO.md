@@ -11,13 +11,13 @@ supported. This implies that you need to build your binary from scratch.
 
 ### Bazel
 
-Using Tink in projects built with Bazel is straightforward and is the recommended
-approach. For reference, see [the C++
-examples](https://github.com/google/tink/tree/master/examples/cc).
+Using Tink in projects built with Bazel is straightforward and is the
+recommended approach. For reference, see
+[the C++ examples](https://github.com/google/tink/tree/master/cc/examples).
 
 ### CMake
 
-Using Tink with CMake is supported, see [CMAKE-HOWTO](CMAKE-HOWTO.md) for for a
+Using Tink with CMake is supported, see [CMAKE-HOWTO](CMAKE-HOWTO.md) for a
 detailed description.
 
 ## Initializing Tink

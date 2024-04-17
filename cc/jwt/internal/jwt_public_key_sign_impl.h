@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC.
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,10 +17,12 @@
 #ifndef TINK_JWT_INTERNAL_JWT_PUBLIC_KEY_SIGN_IMPL_H_
 #define TINK_JWT_INTERNAL_JWT_PUBLIC_KEY_SIGN_IMPL_H_
 
+#include <memory>
 #include <string>
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "tink/jwt/internal/jwt_public_key_sign_internal.h"
 #include "tink/jwt/raw_jwt.h"
 #include "tink/public_key_sign.h"
@@ -50,6 +52,9 @@ class JwtPublicKeySignImpl : public JwtPublicKeySignInternal {
  private:
   std::unique_ptr<crypto::tink::PublicKeySign> sign_;
   std::string algorithm_;
+  // custom_kid may be set when a key is converted from another format, for
+  // example JWK. It does not have any relation to the key id. It can only be
+  // set for keys with output prefix RAW.
   absl::optional<std::string> custom_kid_;
 };
 

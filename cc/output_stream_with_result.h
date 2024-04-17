@@ -19,6 +19,7 @@
 
 #include <type_traits>
 
+#include "absl/status/status.h"
 #include "tink/output_stream.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
@@ -59,7 +60,7 @@ template <class T>
 class OutputStreamWithResult : public OutputStream {
  public:
   OutputStreamWithResult() : closed_(false) {}
-  ~OutputStreamWithResult() override {}
+  ~OutputStreamWithResult() override = default;
 
   // The return type is StatusOr<T> if T != Status, and Status otherwise.
   using ResultType =
@@ -74,7 +75,7 @@ class OutputStreamWithResult : public OutputStream {
   // The return type is StatusOr<T> if T != Status, and Status otherwise.
   ResultType GetResult() {
     if (!closed_) {
-      return util::Status(util::error::FAILED_PRECONDITION,
+      return util::Status(absl::StatusCode::kFailedPrecondition,
                           "Stream is not closed");
     }
     return result_;
@@ -94,7 +95,8 @@ class OutputStreamWithResult : public OutputStream {
   // Closes the OutputStream.
   util::Status Close() final {
     if (closed_) {
-      return util::Status(util::error::FAILED_PRECONDITION, "Stream closed");
+      return util::Status(absl::StatusCode::kFailedPrecondition,
+                          "Stream closed");
     }
     result_ = CloseStreamAndComputeResult();
     closed_ = true;
@@ -106,7 +108,7 @@ class OutputStreamWithResult : public OutputStream {
   // description.
   crypto::tink::util::StatusOr<int> Next(void** data) final {
     if (closed_) {
-      return util::Status(util::error::FAILED_PRECONDITION,
+      return util::Status(absl::StatusCode::kFailedPrecondition,
                           "Write on closed Stream");
     }
     return NextBuffer(data);

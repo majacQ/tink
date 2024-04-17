@@ -11,45 +11,48 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
-package hcvault
+package hcvault_test
 
 import (
 	"crypto/tls"
 	"log"
 
 	"github.com/google/tink/go/aead"
-	"github.com/google/tink/go/core/registry"
-	"github.com/google/tink/go/keyset"
+	"github.com/google/tink/go/integration/hcvault"
 )
 
 func Example() {
+	// Use a key with key derivation enabled (with "derived=true") if you use a non-empty
+	// associated_data.
 	const keyURI = "hcvault://hcvault.corp.com:8200/transit/keys/key-1"
 
-	vaultClient, err := NewClient(keyURI, tlsConfig(), vaultToken())
+	vaultClient, err := hcvault.NewClient(keyURI, tlsConfig(), vaultToken())
 	if err != nil {
 		log.Fatal(err)
 	}
-	registry.RegisterKMSClient(vaultClient)
-
-	dek := aead.AES128CTRHMACSHA256KeyTemplate()
-	kh, err := keyset.NewHandle(aead.KMSEnvelopeAEADKeyTemplate(keyURI, dek))
+	kekAEAD, err := vaultClient.GetAEAD(keyURI)
 	if err != nil {
 		log.Fatal(err)
 	}
-	a, err := aead.New(kh)
+	dekTemplate := aead.AES128CTRHMACSHA256KeyTemplate()
+	a := aead.NewKMSEnvelopeAEAD2(dekTemplate, kekAEAD)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	ct, err := a.Encrypt([]byte("this data needs to be encrypted"), nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	_, err = a.Decrypt(ct, nil)
+	plaintext := []byte("plaintext")
+	associatedData := []byte("associatedData")
+
+	ciphertext, err := a.Encrypt(plaintext, associatedData)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = a.Decrypt(ciphertext, associatedData)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -15,6 +15,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 package com.google.crypto.tink.prf;
 
+import com.google.crypto.tink.config.TinkFips;
 import java.security.GeneralSecurityException;
 
 /**
@@ -23,17 +24,24 @@ import java.security.GeneralSecurityException;
  * Tink.
  */
 public final class PrfConfig {
-  public static final String PRF_TYPE_URL = new HkdfPrfKeyManager().getKeyType();
+  public static final String PRF_TYPE_URL = HkdfPrfKeyManager.getKeyType();
+  public static final String HMAC_PRF_TYPE_URL = HmacPrfKeyManager.getKeyType();
 
   /**
    * Tries to register with the {@link Registry} all instances of {@link
    * com.google.crypto.tink.KeyManager} needed to handle Prf key types supported in Tink.
    */
   public static void register() throws GeneralSecurityException {
+    PrfSetWrapper.register();
+    HmacPrfKeyManager.register(/*newKeyAllowed=*/ true);
+
+    if (TinkFips.useOnlyFips()) {
+      // If Tink is built in FIPS-mode do not register algorithms which are not compatible.
+      return;
+    }
+
     AesCmacPrfKeyManager.register(/*newKeyAllowed=*/ true);
     HkdfPrfKeyManager.register(/*newKeyAllowed=*/ true);
-    HmacPrfKeyManager.register(/*newKeyAllowed=*/ true);
-    PrfSetWrapper.register();
   }
 
   private PrfConfig() {}

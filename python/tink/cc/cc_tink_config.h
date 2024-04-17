@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC.
+// Copyright 2019 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_PYTHON_CC_CC_TINK_CONFIG_H_
-#define TINK_PYTHON_CC_CC_TINK_CONFIG_H_
+#ifndef TINK_PYTHON_TINK_CC_CC_TINK_CONFIG_H_
+#define TINK_PYTHON_TINK_CC_CC_TINK_CONFIG_H_
 
 #include "tink/util/status.h"
 #include "tink/registry.h"
@@ -23,9 +23,9 @@
 namespace crypto {
 namespace tink {
 
-crypto::tink::util::Status CcTinkConfigRegister();
+void CcTinkConfigRegister();
 
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_PYTHON_CC_CC_TINK_CONFIG_H_
+#endif  // TINK_PYTHON_TINK_CC_CC_TINK_CONFIG_H_

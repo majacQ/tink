@@ -18,22 +18,68 @@
 #define TINK_UTIL_SECRET_DATA_INTERNAL_H_
 
 #include <cstddef>
-#include <memory>
+#include <cstdlib>
+#include <limits>
+#include <new>
 
 #include "absl/base/attributes.h"
+#include "absl/base/config.h"
+#include "openssl/crypto.h"
 
 namespace crypto {
 namespace tink {
 namespace util {
 namespace internal {
 
-// placeholder for sanitization_functions, please ignore
-inline void SafeZeroMemory(char* ptr, std::size_t size) {
-  volatile char* vptr = ptr;
-  while (size--) {
-    *vptr++ = 0;
-  }
+inline void SafeZeroMemory(void* ptr, std::size_t size) {
+  OPENSSL_cleanse(ptr, size);
 }
+
+template <typename T>
+struct SanitizingAllocatorImpl {
+  // If aligned operator new is not supported this only supports under aligned
+  // types.
+#ifndef __cpp_aligned_new
+  static_assert(alignof(T) <= alignof(std::max_align_t),
+                "SanitizingAllocator<T> only supports fundamental alignment "
+                "before C++17");
+#endif
+
+  static T* allocate(std::size_t n) {
+    if (n > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+#ifdef ABSL_HAVE_EXCEPTIONS
+      throw std::bad_array_new_length();
+#else
+      std::abort();
+#endif
+    }
+    std::size_t size = n * sizeof(T);
+#ifdef __cpp_aligned_new
+    return static_cast<T*>(::operator new(size, std::align_val_t(alignof(T))));
+#else
+    return static_cast<T*>(::operator new(size));
+#endif
+  }
+
+  static void deallocate(void* ptr, std::size_t n) {
+    SafeZeroMemory(ptr, n * sizeof(T));
+#ifdef __cpp_aligned_new
+    ::operator delete(ptr, std::align_val_t(alignof(T)));
+#else
+    ::operator delete(ptr);
+#endif
+  }
+};
+
+// Specialization for malloc-like aligned storage.
+template <>
+struct SanitizingAllocatorImpl<void> {
+  static void* allocate(std::size_t n) { return std::malloc(n); }
+  static void deallocate(void* ptr, std::size_t n) {
+    SafeZeroMemory(ptr, n);
+    return std::free(ptr);
+  }
+};
 
 template <typename T>
 struct SanitizingAllocator {
@@ -45,48 +91,16 @@ struct SanitizingAllocator {
       const SanitizingAllocator<U>&) noexcept {}
 
   ABSL_MUST_USE_RESULT T* allocate(std::size_t n) {
-    return std::allocator<T>().allocate(n);
+    return SanitizingAllocatorImpl<T>::allocate(n);
   }
 
   void deallocate(T* ptr, std::size_t n) noexcept {
-    SafeZeroMemory(reinterpret_cast<char*>(ptr), n * sizeof(T));
-    std::allocator<T>().deallocate(ptr, n);
+    SanitizingAllocatorImpl<T>::deallocate(ptr, n);
   }
 
   // Allocator requirements mandate definition of eq and neq operators
   bool operator==(const SanitizingAllocator&) { return true; }
   bool operator!=(const SanitizingAllocator&) { return false; }
-};
-
-// Specialization for malloc-like aligned storage.
-template <>
-struct SanitizingAllocator<void> {
-  typedef void value_type;
-
-  SanitizingAllocator() = default;
-  template <class U>
-  explicit constexpr SanitizingAllocator(
-      const SanitizingAllocator<U>&) noexcept {}
-
-  ABSL_MUST_USE_RESULT void* allocate(std::size_t n) { return std::malloc(n); }
-
-  void deallocate(void* ptr, std::size_t n) noexcept {
-    SafeZeroMemory(reinterpret_cast<char*>(ptr), n);
-    std::free(ptr);
-  }
-
-  // Allocator requirements mandate definition of eq and neq operators
-  bool operator==(const SanitizingAllocator&) { return true; }
-  bool operator!=(const SanitizingAllocator&) { return false; }
-};
-// placeholder 2 for sanitization_functions, please ignore
-
-template <typename T>
-struct SanitizingDeleter {
-  void operator()(T* ptr) {
-    ptr->~T();  // Invoke destructor. Must do this before sanitize.
-    SanitizingAllocator<T>().deallocate(ptr, 1);
-  }
 };
 
 }  // namespace internal

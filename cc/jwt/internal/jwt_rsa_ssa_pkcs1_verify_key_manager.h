@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC.
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,16 +16,21 @@
 #ifndef TINK_JWT_INTERNAL_JWT_RSA_SSA_PKCS1_VERIFY_KEY_MANAGER_H_
 #define TINK_JWT_INTERNAL_JWT_RSA_SSA_PKCS1_VERIFY_KEY_MANAGER_H_
 
+#include <cstdint>
+#include <memory>
 #include <string>
 
 #include "absl/memory/memory.h"
 #include "tink/core/key_type_manager.h"
+#include "tink/core/template_util.h"
+#include "tink/internal/fips_utils.h"
 #include "tink/jwt/internal/jwt_public_key_verify_impl.h"
+#include "tink/jwt/internal/jwt_public_key_verify_internal.h"
 #include "tink/jwt/internal/raw_jwt_rsa_ssa_pkcs1_verify_key_manager.h"
-#include "tink/jwt/jwt_public_key_verify.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "proto/jwt_rsa_ssa_pkcs1.pb.h"
+#include "proto/tink.pb.h"
 
 namespace crypto {
 namespace tink {
@@ -33,12 +38,13 @@ namespace jwt_internal {
 
 class JwtRsaSsaPkcs1VerifyKeyManager
     : public KeyTypeManager<google::crypto::tink::JwtRsaSsaPkcs1PublicKey, void,
-                            List<JwtPublicKeyVerify>> {
+                            List<JwtPublicKeyVerifyInternal>> {
  public:
-  class PublicKeyVerifyFactory : public PrimitiveFactory<JwtPublicKeyVerify> {
-    crypto::tink::util::StatusOr<std::unique_ptr<JwtPublicKeyVerify>> Create(
-        const google::crypto::tink::JwtRsaSsaPkcs1PublicKey&
-            jwt_rsa_ssa_pkcs1_public_key) const override;
+  class PublicKeyVerifyFactory
+      : public PrimitiveFactory<JwtPublicKeyVerifyInternal> {
+    crypto::tink::util::StatusOr<std::unique_ptr<JwtPublicKeyVerifyInternal>>
+    Create(const google::crypto::tink::JwtRsaSsaPkcs1PublicKey&
+               jwt_rsa_ssa_pkcs1_public_key) const override;
 
    private:
     const RawJwtRsaSsaPkcs1VerifyKeyManager raw_key_manager_;
@@ -56,6 +62,10 @@ class JwtRsaSsaPkcs1VerifyKeyManager
 
   crypto::tink::util::Status ValidateKey(
       const google::crypto::tink::JwtRsaSsaPkcs1PublicKey& key) const override;
+
+  internal::FipsCompatibility FipsStatus() const override {
+    return internal::FipsCompatibility::kRequiresBoringCrypto;
+  }
 
  private:
   static crypto::tink::util::StatusOr<std::string> AlgorithmName(

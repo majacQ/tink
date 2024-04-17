@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "tink/kms_clients.h"
 #include "tink/util/status.h"
@@ -28,30 +29,28 @@
 #include "tink/util/test_matchers.h"
 #include "tink/util/test_util.h"
 
-using ::crypto::tink::test::IsOk;
-using ::crypto::tink::test::StatusIs;
-
 namespace crypto {
 namespace tink {
 namespace integration {
 namespace gcpkms {
 namespace {
 
-using crypto::tink::integration::gcpkms::GcpKmsClient;
+using ::crypto::tink::test::IsOk;
+using ::crypto::tink::test::StatusIs;
 
 TEST(GcpKmsClientTest, ClientNotBoundToAKey) {
   std::string gcp_key1 = "gcp-kms://projects/someProject/.../cryptoKeys/key1";
   std::string gcp_key2 = "gcp-kms://projects/otherProject/.../cryptoKeys/key2";
   std::string non_gcp_key = "aws-kms://arn:aws:kms:us-west-2:acc:other/key3";
   std::string creds_file =
-      std::string(getenv("TEST_SRCDIR")) + "/tink_base/testdata/credential.json";
+      std::string(getenv("TEST_SRCDIR")) + "/tink_cc_gcpkms/testdata/gcp/credential.json";
 
-  auto client_result = GcpKmsClient::New("", creds_file);
-  EXPECT_TRUE(client_result.ok()) << client_result.status();
-  auto client = std::move(client_result.ValueOrDie());
-  EXPECT_TRUE(client->DoesSupport(gcp_key1));
-  EXPECT_TRUE(client->DoesSupport(gcp_key2));
-  EXPECT_FALSE(client->DoesSupport(non_gcp_key));
+  util::StatusOr<std::unique_ptr<GcpKmsClient>> client =
+      GcpKmsClient::New("", creds_file);
+  ASSERT_THAT(client, IsOk());
+  EXPECT_TRUE((*client)->DoesSupport(gcp_key1));
+  EXPECT_TRUE((*client)->DoesSupport(gcp_key2));
+  EXPECT_FALSE((*client)->DoesSupport(non_gcp_key));
 }
 
 TEST(GcpKmsClientTest, ClientBoundToASpecificKey) {
@@ -59,36 +58,37 @@ TEST(GcpKmsClientTest, ClientBoundToASpecificKey) {
   std::string gcp_key2 = "gcp-kms://projects/otherProject/.../cryptoKeys/key2";
   std::string non_gcp_key = "aws-kms://arn:aws:kms:us-west-2:acc:other/key3";
   std::string creds_file =
-      std::string(getenv("TEST_SRCDIR")) + "/tink_base/testdata/credential.json";
+      std::string(getenv("TEST_SRCDIR")) + "/tink_cc_gcpkms/testdata/gcp/credential.json";
 
-  auto client_result = GcpKmsClient::New(gcp_key1, creds_file);
-  EXPECT_TRUE(client_result.ok()) << client_result.status();
-  auto client = std::move(client_result.ValueOrDie());
-  EXPECT_TRUE(client->DoesSupport(gcp_key1));
-  EXPECT_FALSE(client->DoesSupport(gcp_key2));
-  EXPECT_FALSE(client->DoesSupport(non_gcp_key));
+  util::StatusOr<std::unique_ptr<GcpKmsClient>> client =
+      GcpKmsClient::New(gcp_key1, creds_file);
+  ASSERT_THAT(client, IsOk());
+  EXPECT_TRUE((*client)->DoesSupport(gcp_key1));
+  EXPECT_FALSE((*client)->DoesSupport(gcp_key2));
+  EXPECT_FALSE((*client)->DoesSupport(non_gcp_key));
 }
 
 TEST(GcpKmsClientTest, ClientCreationAndRegistry) {
   std::string gcp_key1 = "gcp-kms://projects/someProject/.../cryptoKeys/key1";
-  std::string creds_file = absl::StrCat(getenv("TEST_SRCDIR"),
-                                        "/tink_base/testdata/credential.json");
+  std::string creds_file =
+      absl::StrCat(getenv("TEST_SRCDIR"), "/tink_cc_gcpkms/testdata/gcp/credential.json");
 
-  auto client_result = GcpKmsClient::RegisterNewClient(gcp_key1, creds_file);
-  EXPECT_THAT(client_result, IsOk());
+  util::Status client_result =
+      GcpKmsClient::RegisterNewClient(gcp_key1, creds_file);
+  ASSERT_THAT(client_result, IsOk());
 
-  auto registry_result = KmsClients::Get(gcp_key1);
-  EXPECT_THAT(registry_result.status(), IsOk());
+  util::StatusOr<const KmsClient*> registry_result = KmsClients::Get(gcp_key1);
+  EXPECT_THAT(registry_result, IsOk());
 }
 
 TEST(GcpKmsClientTest, ClientCreationInvalidRegistry) {
   std::string non_gcp_key = "aws-kms://arn:aws:kms:us-west-2:acc:other/key3";
   std::string creds_file =
-      std::string(getenv("TEST_SRCDIR")) + "/tink_base/testdata/credential.json";
+      std::string(getenv("TEST_SRCDIR")) + "/tink_cc_gcpkms/testdata/gcp/credential.json";
 
-  auto client_result = GcpKmsClient::RegisterNewClient(non_gcp_key, creds_file);
-  EXPECT_THAT(client_result,
-              StatusIs(util::error::INVALID_ARGUMENT));
+  util::Status client_result =
+      GcpKmsClient::RegisterNewClient(non_gcp_key, creds_file);
+  EXPECT_THAT(client_result, StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 }  // namespace

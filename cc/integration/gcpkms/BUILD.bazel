@@ -9,13 +9,32 @@ cc_library(
     include_prefix = "tink/integration/gcpkms",
     visibility = ["//visibility:public"],
     deps = [
-        "//:aead",
-        "//:version",
-        "//util:errors",
-        "//util:status",
-        "//util:statusor",
         "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/status",
         "@com_google_googleapis//google/cloud/kms/v1:kms_cc_grpc",
+        "@google_cloud_cpp//:kms",
+        "@com_googlesource_code_re2//:re2",
+        "@tink_cc//:aead",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
+    ],
+)
+
+cc_library(
+    name = "gcp_kms_public_key_sign",
+    srcs = ["gcp_kms_public_key_sign.cc"],
+    hdrs = ["gcp_kms_public_key_sign.h"],
+    include_prefix = "tink/integration/gcpkms",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@boringssl//:crypto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/base:nullability",
+        "@google_cloud_cpp//:kms",
+        "@com_googlesource_code_re2//:re2",
+        "@tink_cc//:public_key_sign",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
     ],
 )
 
@@ -27,29 +46,44 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":gcp_kms_aead",
-        "//:kms_client",
-        "//:kms_clients",
-        "//util:errors",
-        "//util:status",
-        "//util:statusor",
         "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
+        "@tink_cc//:aead",
+        "@tink_cc//:kms_client",
+        "@tink_cc//:kms_clients",
+        "@tink_cc//:version",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
     ],
 )
 
-# tests
-
 cc_test(
-    name = "gcp_kms_aead_test",
+    name = "gcp_kms_aead_integration_test",
     size = "medium",
-    srcs = ["gcp_kms_aead_test.cc"],
+    srcs = ["gcp_kms_aead_integration_test.cc"],
+    data = [
+        "//testdata/gcp:credentials",
+        "@google_root_pem//file",
+    ],
+    # This target requires valid credentials to interact with the Google Cloud
+    # KMS.
+    tags = ["manual"],
     deps = [
         ":gcp_kms_aead",
-        "//util:errors",
-        "//util:status",
-        "//util:statusor",
+        ":gcp_kms_client",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@tink_cc//:aead",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
+        "@tink_cc//util:test_matchers",
     ],
 )
 
@@ -57,14 +91,49 @@ cc_test(
     name = "gcp_kms_client_test",
     size = "medium",
     srcs = ["gcp_kms_client_test.cc"],
-    data = ["@tink_base//testdata:credentials"],
+    data = ["//testdata/gcp:credentials"],
     deps = [
         ":gcp_kms_client",
-        "//util:errors",
-        "//util:status",
-        "//util:statusor",
-        "//util:test_matchers",
-        "//util:test_util",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest_main",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
+        "@tink_cc//util:test_matchers",
+        "@tink_cc//util:test_util",
+    ],
+)
+
+cc_test(
+    name = "gcp_kms_aead_test",
+    srcs = ["gcp_kms_aead_test.cc"],
+    deps = [
+        ":gcp_kms_aead",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_googleapis//google/cloud/kms/v1:kms_cc_grpc",
+        "@com_google_googletest//:gtest_main",
+        "@google_cloud_cpp//:kms",
+        "@google_cloud_cpp//:kms_mocks",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
+        "@tink_cc//util:test_matchers",
+        "@tink_cc//util:test_util",
+    ],
+)
+
+cc_test(
+    name = "gcp_kms_public_key_sign_test",
+    srcs = ["gcp_kms_public_key_sign_test.cc"],
+    deps = [
+        ":gcp_kms_public_key_sign",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_googletest//:gtest_main",
+        "@google_cloud_cpp//:kms",
+        "@google_cloud_cpp//:kms_mocks",
+        "@tink_cc//util:statusor",
+        "@tink_cc//util:test_matchers",
+        "@tink_cc//util:test_util",
     ],
 )

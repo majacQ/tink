@@ -1,38 +1,26 @@
 ---
 name: Bug report
 about: Create a report to help us improve Tink
-assignees: 'thaidn, chuckx'
 
 ---
 
-**Help us help you**
-
-Please tell us more about
-[your Tink deployment](https://docs.google.com/forms/d/1mhHvyNJQgTXFDnqOermB7-BD8GQSyvtFPUAhILRbYcA/edit).
-
-**Describe the bug**
-
-Provide clear and concise description of the bug.
-
-**To Reproduce**
-
-Include buildable code snippets or gists which triggered the bug.
-
-**Expected behavior**
-
-Describe of what you expected to happen.
-
-**Error messages, stack traces, etc.**
-
-If applicable, please include error messages, stack traces or any debugging
-information.
-
-**Version information**
-
- - Language: (e.g., Java, Python, etc.)
- - Version: (e.g., 1.2.0)
- - Environment: (e.g., JDK 8, Python3.7, iPhone 11, Android M, etc.)
-
-**Additional context**
-
-Add any other context about the problem.
+> **NOTE**: **Tink moved to github.com/tink-crypto!**
+>
+> We split Tink into multiple focused repositories.
+> Please create this issue in the appropriate repository in
+> github.com/tink-crypto instead:
+>
+> *   [Tink Java](https://github.com/tink-crypto/tink-java/issues/new?template=bug_report.md)
+> *   [Tink Java AWS KMS extension](https://github.com/tink-crypto/tink-java-awskms/issues/new?template=bug_report.md)
+> *   [Tink Java Google Cloud KMS extension](https://github.com/tink-crypto/tink-java-gcpkms/issues/new?template=bug_report.md)
+> *   [Tink Java apps extension](https://github.com/tink-crypto/tink-java-apps/issues/new?template=bug_report.md)
+> *   [Tink C++](https://github.com/tink-crypto/tink-cc/issues/new?template=bug_report.md)
+> *   [Tink C++ AWS KMS extension](https://github.com/tink-crypto/tink-cc-awskms/issues/new?template=bug_report.md)
+> *   [Tink C++ Google Cloud KMS extension](https://github.com/tink-crypto/tink-cc-gcpkms/issues/new?template=bug_report.md)
+> *   [Tink Go](https://github.com/tink-crypto/tink-go/issues/new?template=bug_report.md)
+> *   [Tink Go AWS KMS extension](https://github.com/tink-crypto/tink-go-awskms/issues/new?template=bug_report.md)
+> *   [Tink Go Google Cloud KMS extension](https://github.com/tink-crypto/tink-go-gcpkms/issues/new?template=bug_report.md)
+> *   [Tink Go HashiCorp Vault KMS extension](https://github.com/tink-crypto/tink-go-hcvault/issues/new?template=bug_report.md)
+> *   [Tink Objc](https://github.com/tink-crypto/tink-objc/issues/new?template=bug_report.md)
+> *   [Tink Python](https://github.com/tink-crypto/tink-py/issues/new?template=bug_report.md)
+> *   [Tink Tinkey](https://github.com/tink-crypto/tink-tinkey/issues/new?template=bug_report.md)

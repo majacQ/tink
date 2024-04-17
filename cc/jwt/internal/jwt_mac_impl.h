@@ -17,10 +17,12 @@
 #ifndef TINK_JWT_INTERNAL_JWT_MAC_IMPL_H_
 #define TINK_JWT_INTERNAL_JWT_MAC_IMPL_H_
 
+#include <memory>
 #include <string>
 #include <utility>
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "tink/jwt/internal/jwt_mac_internal.h"
 #include "tink/jwt/jwt_mac.h"
 #include "tink/jwt/jwt_validator.h"
@@ -50,9 +52,10 @@ class JwtMacImpl : public JwtMacInternal {
       const crypto::tink::RawJwt& token,
       absl::optional<absl::string_view> kid) const override;
 
-  crypto::tink::util::StatusOr<crypto::tink::VerifiedJwt> VerifyMacAndDecode(
-      absl::string_view compact,
-      const crypto::tink::JwtValidator& validator) const override;
+  crypto::tink::util::StatusOr<crypto::tink::VerifiedJwt>
+  VerifyMacAndDecodeWithKid(
+      absl::string_view compact, const crypto::tink::JwtValidator& validator,
+      absl::optional<absl::string_view> kid) const override;
 
  private:
   std::unique_ptr<crypto::tink::Mac> mac_;

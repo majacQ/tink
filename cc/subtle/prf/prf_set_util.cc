@@ -15,11 +15,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "tink/subtle/prf/prf_set_util.h"
 
+#include <cstddef>
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
+#include "tink/prf/prf_set.h"
 #include "tink/subtle/mac/stateful_mac.h"
+#include "tink/subtle/prf/streaming_prf.h"
 #include "tink/util/input_stream_util.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
@@ -40,7 +47,7 @@ class PrfFromStreamingPrf : public Prf {
     if (!output_result.ok()) {
       return output_result.status();
     }
-    std::string output = output_result.ValueOrDie();
+    std::string output = output_result.value();
     return output;
   }
 
@@ -59,7 +66,7 @@ class PrfFromStatefulMacFactory : public Prf {
     if (!stateful_mac_result.ok()) {
       return stateful_mac_result.status();
     }
-    auto stateful_mac = std::move(stateful_mac_result.ValueOrDie());
+    auto stateful_mac = std::move(stateful_mac_result.value());
     auto status = stateful_mac->Update(input);
     if (!status.ok()) {
       return status;
@@ -68,10 +75,10 @@ class PrfFromStatefulMacFactory : public Prf {
     if (!output_result.ok()) {
       return output_result.status();
     }
-    std::string output = std::move(output_result.ValueOrDie());
+    std::string output = std::move(output_result.value());
     if (output.size() < output_length) {
       return util::Status(
-          util::error::INVALID_ARGUMENT,
+          absl::StatusCode::kInvalidArgument,
           absl::StrCat("PRF only supports outputs up to ", output.size(),
                        " bytes, but ", output_length, " bytes were requested"));
     }

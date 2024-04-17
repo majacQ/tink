@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC.
+// Copyright 2021 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,16 +16,21 @@
 #ifndef TINK_JWT_INTERNAL_JWT_ECDSA_SIGN_KEY_MANAGER_H_
 #define TINK_JWT_INTERNAL_JWT_ECDSA_SIGN_KEY_MANAGER_H_
 
+#include <cstdint>
+#include <memory>
 #include <string>
 
 #include "absl/memory/memory.h"
 #include "tink/core/private_key_type_manager.h"
+#include "tink/core/template_util.h"
+#include "tink/internal/fips_utils.h"
 #include "tink/jwt/internal/jwt_public_key_sign_internal.h"
 #include "tink/jwt/internal/raw_jwt_ecdsa_sign_key_manager.h"
 #include "tink/jwt/jwt_public_key_sign.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 #include "proto/jwt_ecdsa.pb.h"
+#include "proto/tink.pb.h"
 
 namespace crypto {
 namespace tink {
@@ -70,6 +75,10 @@ class JwtEcdsaSignKeyManager
   crypto::tink::util::StatusOr<google::crypto::tink::JwtEcdsaPublicKey>
   GetPublicKey(const google::crypto::tink::JwtEcdsaPrivateKey& private_key)
       const override;
+
+  internal::FipsCompatibility FipsStatus() const override {
+    return internal::FipsCompatibility::kRequiresBoringCrypto;
+  }
 
  private:
   const RawJwtEcdsaSignKeyManager raw_key_manager_;

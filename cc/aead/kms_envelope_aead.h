@@ -18,6 +18,8 @@
 #define TINK_AEAD_KMS_ENVELOPE_AEAD_H_
 
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "absl/strings/string_view.h"
 #include "tink/aead.h"
@@ -56,7 +58,7 @@ class KmsEnvelopeAead : public Aead {
       absl::string_view ciphertext,
       absl::string_view associated_data) const override;
 
-  ~KmsEnvelopeAead() override {}
+  ~KmsEnvelopeAead() override = default;
 
  private:
   KmsEnvelopeAead(const google::crypto::tink::KeyTemplate& dek_template,

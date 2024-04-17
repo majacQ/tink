@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package aead
 
@@ -20,7 +18,7 @@ import (
 	"fmt"
 
 	"golang.org/x/crypto/chacha20poly1305"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/google/tink/go/aead/subtle"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/subtle/random"
@@ -42,13 +40,8 @@ var errInvalidChaCha20Poly1305KeyFormat = fmt.Errorf("chacha20poly1305_key_manag
 // It generates new ChaCha20Poly1305Key keys and produces new instances of ChaCha20Poly1305 subtle.
 type chaCha20Poly1305KeyManager struct{}
 
-// newChaCha20Poly1305KeyManager creates a new chaCha20Poly1305KeyManager.
-func newChaCha20Poly1305KeyManager() *chaCha20Poly1305KeyManager {
-	return new(chaCha20Poly1305KeyManager)
-}
-
 // Primitive creates an ChaCha20Poly1305 subtle for the given serialized ChaCha20Poly1305Key proto.
-func (km *chaCha20Poly1305KeyManager) Primitive(serializedKey []byte) (interface{}, error) {
+func (km *chaCha20Poly1305KeyManager) Primitive(serializedKey []byte) (any, error) {
 	if len(serializedKey) == 0 {
 		return nil, errInvalidChaCha20Poly1305Key
 	}

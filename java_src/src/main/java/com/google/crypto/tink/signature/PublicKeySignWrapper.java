@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,12 +16,18 @@
 
 package com.google.crypto.tink.signature;
 
-import com.google.crypto.tink.PrimitiveSet;
 import com.google.crypto.tink.PrimitiveWrapper;
 import com.google.crypto.tink.PublicKeySign;
-import com.google.crypto.tink.Registry;
-import com.google.crypto.tink.proto.OutputPrefixType;
-import com.google.crypto.tink.subtle.Bytes;
+import com.google.crypto.tink.internal.LegacyProtoKey;
+import com.google.crypto.tink.internal.MonitoringUtil;
+import com.google.crypto.tink.internal.MutableMonitoringRegistry;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveConstructor;
+import com.google.crypto.tink.internal.PrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveSet;
+import com.google.crypto.tink.monitoring.MonitoringClient;
+import com.google.crypto.tink.monitoring.MonitoringKeysetInfo;
+import com.google.crypto.tink.signature.internal.LegacyFullSign;
 import java.security.GeneralSecurityException;
 
 /**
@@ -32,24 +38,39 @@ import java.security.GeneralSecurityException;
  * with the primary key.
  */
 public class PublicKeySignWrapper implements PrimitiveWrapper<PublicKeySign, PublicKeySign> {
+
+  private static final PublicKeySignWrapper WRAPPER = new PublicKeySignWrapper();
+  private static final PrimitiveConstructor<LegacyProtoKey, PublicKeySign>
+      LEGACY_PRIMITIVE_CONSTRUCTOR =
+          PrimitiveConstructor.create(
+              LegacyFullSign::create, LegacyProtoKey.class, PublicKeySign.class);
+
   private static class WrappedPublicKeySign implements PublicKeySign {
     private final PrimitiveSet<PublicKeySign> primitives;
 
+    private final MonitoringClient.Logger logger;
+
     public WrappedPublicKeySign(final PrimitiveSet<PublicKeySign> primitives) {
       this.primitives = primitives;
+      if (primitives.hasAnnotations()) {
+        MonitoringClient client = MutableMonitoringRegistry.globalInstance().getMonitoringClient();
+        MonitoringKeysetInfo keysetInfo = MonitoringUtil.getMonitoringKeysetInfo(primitives);
+        this.logger = client.createLogger(keysetInfo, "public_key_sign", "sign");
+      } else {
+        this.logger = MonitoringUtil.DO_NOTHING_LOGGER;
+      }
     }
 
     @Override
     public byte[] sign(final byte[] data) throws GeneralSecurityException {
-      if (primitives.getPrimary().getOutputPrefixType().equals(OutputPrefixType.LEGACY)) {
-        byte[] formatVersion = new byte[] {0};
-        return Bytes.concat(
-            primitives.getPrimary().getIdentifier(),
-            primitives.getPrimary().getPrimitive().sign(Bytes.concat(data, formatVersion)));
+      try {
+        byte[] output = primitives.getPrimary().getFullPrimitive().sign(data);
+        logger.log(primitives.getPrimary().getKeyId(), data.length);
+        return output;
+      } catch (GeneralSecurityException e) {
+        logger.logFailure();
+        throw e;
       }
-      return Bytes.concat(
-          primitives.getPrimary().getIdentifier(),
-          primitives.getPrimary().getPrimitive().sign(data));
     }
   }
 
@@ -77,6 +98,18 @@ public class PublicKeySignWrapper implements PrimitiveWrapper<PublicKeySign, Pub
    * argument.
    */
   public static void register() throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new PublicKeySignWrapper());
+    MutablePrimitiveRegistry.globalInstance().registerPrimitiveWrapper(WRAPPER);
+    MutablePrimitiveRegistry.globalInstance()
+        .registerPrimitiveConstructor(LEGACY_PRIMITIVE_CONSTRUCTOR);
+  }
+
+  /**
+   * registerToInternalPrimitiveRegistry is a non-public method (it takes an argument of an
+   * internal-only type) registering an instance of {@code PublicKeySignWrapper} to the provided
+   * {@code PrimitiveRegistry#Builder}.
+   */
+  public static void registerToInternalPrimitiveRegistry(
+      PrimitiveRegistry.Builder primitiveRegistryBuilder) throws GeneralSecurityException {
+    primitiveRegistryBuilder.registerPrimitiveWrapper(WRAPPER);
   }
 }

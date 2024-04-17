@@ -14,8 +14,10 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_PYTHON_CC_PYTHON_FILE_OBJECT_ADAPTER_H_
-#define TINK_PYTHON_CC_PYTHON_FILE_OBJECT_ADAPTER_H_
+#ifndef TINK_PYTHON_TINK_CC_PYTHON_FILE_OBJECT_ADAPTER_H_
+#define TINK_PYTHON_TINK_CC_PYTHON_FILE_OBJECT_ADAPTER_H_
+
+#include <string>
 
 #include "absl/strings/string_view.h"
 #include "tink/util/status.h"
@@ -46,4 +48,4 @@ class PythonFileObjectAdapter {
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_PYTHON_CC_PYTHON_FILE_OBJECT_ADAPTER_H_
+#endif  // TINK_PYTHON_TINK_CC_PYTHON_FILE_OBJECT_ADAPTER_H_

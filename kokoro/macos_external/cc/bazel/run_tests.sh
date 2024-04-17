@@ -15,13 +15,10 @@
 # limitations under the License.
 ################################################################################
 
-
 set -euo pipefail
-cd ${KOKORO_ARTIFACTS_DIR}/git/tink
 
-./kokoro/copy_credentials.sh
+if [[ -n "${KOKORO_ARTIFACTS_DIR:-}" ]] ; then
+  cd "$(echo "${KOKORO_ARTIFACTS_DIR}"/git*/tink)"
+fi
 
-cd cc
-use_bazel.sh $(cat .bazelversion)
-bazel build -- ...
-bazel test -- ...
+./kokoro/testutils/run_bazel_tests.sh cc

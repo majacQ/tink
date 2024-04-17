@@ -17,6 +17,8 @@
 #ifndef TINK_DETERMINISTIC_AEAD_H_
 #define TINK_DETERMINISTIC_AEAD_H_
 
+#include <string>
+
 #include "absl/strings/string_view.h"
 #include "tink/util/statusor.h"
 
@@ -51,7 +53,7 @@ class DeterministicAead {
       absl::string_view ciphertext,
       absl::string_view associated_data) const = 0;
 
-  virtual ~DeterministicAead() {}
+  virtual ~DeterministicAead() = default;
 };
 
 }  // namespace tink

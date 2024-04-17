@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC.
+# Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +14,7 @@
 """MAC wrapper.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-# Placeholder for import for type annotations
-from __future__ import print_function
-
 from typing import Type
-from absl import logging
-
 
 from tink.proto import tink_pb2
 from tink import core
@@ -57,8 +50,8 @@ class _WrappedMac(_mac.Mac):
           entry.primitive.verify_mac(mac_no_prefix, data)
         # If there is no exception, the MAC is valid and we can return.
         return
-      except core.TinkError as e:
-        logging.info('tag prefix matches a key, but cannot verify: %s', e)
+      except core.TinkError:
+        pass
 
     # No 'non-raw' key matched, so let's try the raw keys (if any exist).
     for entry in self._primitive_set.raw_primitives():
@@ -66,7 +59,7 @@ class _WrappedMac(_mac.Mac):
         entry.primitive.verify_mac(mac_value, data)
         # If there is no exception, the MAC is valid and we can return.
         return
-      except core.TinkError as e:
+      except core.TinkError:
         pass
     raise core.TinkError('invalid MAC')
 

@@ -14,15 +14,34 @@
 # limitations under the License.
 ################################################################################
 
-
 set -euo pipefail
 
-cd "${KOKORO_ARTIFACTS_DIR}/git/tink"
+IS_KOKORO="false"
+if [[ -n "${KOKORO_ARTIFACTS_DIR:-}" ]]; then
+  IS_KOKORO="true"
+fi
+readonly IS_KOKORO
 
-./kokoro/copy_credentials.sh
+if [[ "${IS_KOKORO}" == "true" ]]; then
+  cd "$(echo "${KOKORO_ARTIFACTS_DIR}"/git*/tink)"
+fi
 
-cd go/
+./kokoro/testutils/copy_credentials.sh "go/testdata" "all"
+# Sourcing required to update callers environment.
+source ./kokoro/testutils/install_go.sh
+echo "Using go binary from $(which go): $(go version)"
+./kokoro/testutils/check_go_generated_files_up_to_date.sh go
 
-use_bazel.sh "$(cat .bazelversion)"
-time bazel build -- ...
-time bazel test -- ...
+MANUAL_TARGETS=()
+# Run manual tests which rely on key material injected into the Kokoro
+# environement.
+if [[ "${IS_KOKORO}" == "true" ]]; then
+  MANUAL_TARGETS+=(
+    "//integration/gcpkms:gcpkms_test"
+    "//integration/awskms:awskms_test"
+  )
+fi
+readonly MANUAL_TARGETS
+
+./kokoro/testutils/run_bazel_tests.sh \
+  -t --test_arg=--test.v go "${MANUAL_TARGETS[@]}"

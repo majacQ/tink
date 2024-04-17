@@ -19,11 +19,15 @@ package com.google.crypto.tink.jwt;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
+import com.google.crypto.tink.InsecureSecretKeyAccess;
 import com.google.crypto.tink.KeyTemplate;
 import com.google.crypto.tink.KeyTemplates;
 import com.google.crypto.tink.KeysetHandle;
 import com.google.crypto.tink.KeysetManager;
-import com.google.crypto.tink.internal.KeyTemplateProtoConverter;
+import com.google.crypto.tink.TinkProtoKeysetFormat;
+import com.google.crypto.tink.proto.Keyset;
+import com.google.crypto.tink.proto.OutputPrefixType;
+import com.google.protobuf.ExtensionRegistryLite;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Instant;
@@ -44,6 +48,8 @@ public class JwtMacWrapperTest {
 
   @Test
   public void test_wrapNoPrimary_throws() throws Exception {
+    // The old KeysetManager API allows keysets without primary key.
+    // The KeysetHandle.Builder does not allow this and can't be used in this test.
     KeyTemplate template = KeyTemplates.get("JWT_HS256");
     KeysetManager manager = KeysetManager.withEmptyKeyset().add(template);
     KeysetHandle handle = manager.getKeysetHandle();
@@ -54,11 +60,18 @@ public class JwtMacWrapperTest {
   public void test_wrapLegacy_throws() throws Exception {
     KeyTemplate rawTemplate = KeyTemplates.get("JWT_HS256_RAW");
     // Convert the normal, raw template into a template with output prefix type LEGACY
-    KeyTemplate tinkTemplate =
-        KeyTemplate.create(
-            rawTemplate.getTypeUrl(), rawTemplate.getValue(), KeyTemplate.OutputPrefixType.LEGACY);
-    KeysetHandle handle = KeysetHandle.generateNew(tinkTemplate);
-    assertThrows(GeneralSecurityException.class, () -> handle.getPrimitive(JwtMac.class));
+    KeysetHandle handle = KeysetHandle.generateNew(rawTemplate);
+    Keyset keyset =
+        Keyset.parseFrom(
+            TinkProtoKeysetFormat.serializeKeyset(handle, InsecureSecretKeyAccess.get()),
+            ExtensionRegistryLite.getEmptyRegistry());
+    Keyset.Builder legacyKeysetBuilder = keyset.toBuilder();
+    legacyKeysetBuilder.setKey(
+        0, legacyKeysetBuilder.getKey(0).toBuilder().setOutputPrefixType(OutputPrefixType.LEGACY));
+    KeysetHandle legacyHandle =
+        TinkProtoKeysetFormat.parseKeyset(
+            legacyKeysetBuilder.build().toByteArray(), InsecureSecretKeyAccess.get());
+    assertThrows(GeneralSecurityException.class, () -> legacyHandle.getPrimitive(JwtMac.class));
   }
 
   @Test
@@ -87,16 +100,21 @@ public class JwtMacWrapperTest {
   }
 
   @Test
-  public void test_wrapMultipleKeys() throws Exception {
-    KeyTemplate template = KeyTemplates.get("JWT_HS256");
-
-    KeysetManager manager = KeysetManager.withEmptyKeyset();
-    manager.addNewKey(KeyTemplateProtoConverter.toProto(template), /*asPrimary=*/ true);
-    KeysetHandle oldHandle = manager.getKeysetHandle();
-
-    manager.addNewKey(KeyTemplateProtoConverter.toProto(template), /*asPrimary=*/ true);
-
-    KeysetHandle newHandle = manager.getKeysetHandle();
+  public void test_wrapMultipleRawKeys() throws Exception {
+    KeysetHandle oldHandle =
+        KeysetHandle.newBuilder()
+            .addEntry(
+                KeysetHandle.generateEntryFromParametersName("JWT_HS256_RAW")
+                    .withRandomId()
+                    .makePrimary())
+            .build();
+    KeysetHandle newHandle =
+        KeysetHandle.newBuilder(oldHandle)
+            .addEntry(
+                KeysetHandle.generateEntryFromParametersName("JWT_HS256_RAW")
+                    .withRandomId()
+                    .makePrimary())
+            .build();
 
     JwtMac oldJwtMac = oldHandle.getPrimitive(JwtMac.class);
     JwtMac newJwtMac = newHandle.getPrimitive(JwtMac.class);
@@ -119,15 +137,20 @@ public class JwtMacWrapperTest {
 
   @Test
   public void test_wrapMultipleTinkKeys() throws Exception {
-    KeyTemplate tinkTemplate = KeyTemplates.get("JWT_HS256");
-
-    KeysetManager manager = KeysetManager.withEmptyKeyset();
-    manager.addNewKey(KeyTemplateProtoConverter.toProto(tinkTemplate), /*asPrimary=*/ true);
-    KeysetHandle oldHandle = manager.getKeysetHandle();
-
-    manager.addNewKey(KeyTemplateProtoConverter.toProto(tinkTemplate), /*asPrimary=*/ true);
-
-    KeysetHandle newHandle = manager.getKeysetHandle();
+    KeysetHandle oldHandle =
+        KeysetHandle.newBuilder()
+            .addEntry(
+                KeysetHandle.generateEntryFromParametersName("JWT_HS256")
+                    .withRandomId()
+                    .makePrimary())
+            .build();
+    KeysetHandle newHandle =
+        KeysetHandle.newBuilder(oldHandle)
+            .addEntry(
+                KeysetHandle.generateEntryFromParametersName("JWT_HS256")
+                    .withRandomId()
+                    .makePrimary())
+            .build();
 
     JwtMac oldJwtMac = oldHandle.getPrimitive(JwtMac.class);
     JwtMac newJwtMac = newHandle.getPrimitive(JwtMac.class);

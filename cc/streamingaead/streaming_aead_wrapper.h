@@ -17,10 +17,12 @@
 #ifndef TINK_STREAMINGAEAD_STREAMING_AEAD_WRAPPER_H_
 #define TINK_STREAMINGAEAD_STREAMING_AEAD_WRAPPER_H_
 
+#include <memory>
+
 #include "absl/strings/string_view.h"
-#include "tink/streaming_aead.h"
 #include "tink/primitive_set.h"
 #include "tink/primitive_wrapper.h"
+#include "tink/streaming_aead.h"
 #include "tink/util/statusor.h"
 #include "proto/tink.pb.h"
 

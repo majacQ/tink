@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package subtle
 
@@ -36,12 +34,12 @@ type ECDSASigner struct {
 }
 
 // NewECDSASigner creates a new instance of ECDSASigner.
-func NewECDSASigner(hashAlg string,
-	curve string,
-	encoding string,
-	keyValue []byte) (*ECDSASigner, error) {
+func NewECDSASigner(hashAlg, curve, encoding string, keyValue []byte) (*ECDSASigner, error) {
 	privKey := new(ecdsa.PrivateKey)
 	c := subtle.GetCurve(curve)
+	if c == nil {
+		return nil, errors.New("ecdsa_signer: invalid curve")
+	}
 	privKey.PublicKey.Curve = c
 	privKey.D = new(big.Int).SetBytes(keyValue)
 	privKey.PublicKey.X, privKey.PublicKey.Y = c.ScalarBaseMult(keyValue)
@@ -49,9 +47,7 @@ func NewECDSASigner(hashAlg string,
 }
 
 // NewECDSASignerFromPrivateKey creates a new instance of ECDSASigner
-func NewECDSASignerFromPrivateKey(hashAlg string,
-	encoding string,
-	privateKey *ecdsa.PrivateKey) (*ECDSASigner, error) {
+func NewECDSASignerFromPrivateKey(hashAlg, encoding string, privateKey *ecdsa.PrivateKey) (*ECDSASigner, error) {
 	if privateKey.Curve == nil {
 		return nil, errors.New("ecdsa_signer: privateKey.Curve can't be nil")
 	}

@@ -14,14 +14,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// Definitions for Cloud Crypto SDK (Tink) library.
+// Tink Proto Keyset serialization format.
 syntax = "proto3";
 
 package google.crypto.tink;
 
 option java_package = "com.google.crypto.tink.proto";
 option java_multiple_files = true;
-option go_package = "github.com/google/tink/proto/tink_go_proto";
+option go_package = "github.com/tink-crypto/tink-go/v2/proto/tink_go_proto";
 option objc_class_prefix = "TINKPB";
 
 // Each instantiation of a Tink primitive is identified by type_url,
@@ -94,15 +94,14 @@ enum OutputPrefixType {
 }
 
 // Each *Key proto by convention contains a version field, which
-// identifies the version of implementation that can work with this key.
+// identifies the version of the key.
 //   message SomeInstantiationKey {
 //     uint32 version = 1;
 //     ...
 //   }
-// Version is a monotonic counter: each implementation of a primitive
-// has its associated "current version", which starts at 0 and is incremented
-// upon updates of the code/key proto.  A key with version n needs
-// an implementation version n or higher to work.
+// If a key type does not mention anything else, only version 0 is currently
+// specified. An implementation must only accept keys with versions it knows,
+// and must reject all keys with unknown version.
 
 // For public key primitives, the public and private keys are distinct entities
 // and represent distinct primitives.  However, by convention, the private key
@@ -117,7 +116,7 @@ message KeyData {
   string type_url = 1;  // In format type.googleapis.com/packagename.messagename
   // Required.
   // Contains specific serialized *Key proto
-  bytes value = 2;  // placeholder for ctype
+  bytes value = 2;  // Placeholder for ctype.
   enum KeyMaterialType {
     UNKNOWN_KEYMATERIAL = 0;
     SYMMETRIC = 1;

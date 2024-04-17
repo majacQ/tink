@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package testutil
 
@@ -28,6 +26,11 @@ const (
 	AESGCMKeyVersion = 0
 	// AESGCMTypeURL is the type URL of AES-GCM keys that Tink supports.
 	AESGCMTypeURL = "type.googleapis.com/google.crypto.tink.AesGcmKey"
+
+	// AESGCMSIVKeyVersion is the maximal version of AES-GCM-SIV keys.
+	AESGCMSIVKeyVersion = 0
+	// AESGCMSIVTypeURL is the type URL of AES-GCM-SIV keys that Tink supports.
+	AESGCMSIVTypeURL = "type.googleapis.com/google.crypto.tink.AesGcmSivKey"
 
 	// ChaCha20Poly1305KeyVersion is the maximal version of ChaCha20Poly1305 keys that Tink supports.
 	ChaCha20Poly1305KeyVersion = 0

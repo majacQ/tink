@@ -1,0 +1,30 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@pip_deps//:requirements.bzl", "requirement")
+
+package(default_visibility = ["//visibility:private"])
+
+licenses(["notice"])
+
+py_binary(
+    name = "cleartext_keyset_cli",
+    srcs = ["cleartext_keyset_cli.py"],
+    python_version = "PY3",
+    deps = [
+        requirement("absl-py"),
+        "@tink_py//tink:secret_key_access",
+        "@tink_py//tink:tink_python",
+        "@tink_py//tink/aead",
+    ],
+)
+
+sh_test(
+    name = "cleartext_keyset_test",
+    size = "small",
+    srcs = ["cleartext_keyset_cli_test.sh"],
+    args = [
+        "$(rootpath :cleartext_keyset_cli)",
+    ],
+    data = [
+        ":cleartext_keyset_cli",
+    ],
+)

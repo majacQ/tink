@@ -6,12 +6,13 @@ java_test(
     srcs = ["AwsKmsAeadTest.java"],
     deps = [
         "//src/main/java/com/google/crypto/tink:aead",
+        "//src/main/java/com/google/crypto/tink/aead:aead_config",
         "//src/main/java/com/google/crypto/tink/integration/awskms:aws_kms_aead",
+        "//src/main/java/com/google/crypto/tink/integration/awskms:fake_aws_kms",
         "//src/main/java/com/google/crypto/tink/subtle:random",
-        "@maven//:com_amazonaws_aws_java_sdk_core",
         "@maven//:com_amazonaws_aws_java_sdk_kms",
+        "@maven//:com_google_truth_truth",
         "@maven//:junit_junit",
-        "@maven//:org_mockito_mockito_core",
     ],
 )
 
@@ -20,9 +21,33 @@ java_test(
     size = "small",
     srcs = ["AwsKmsClientTest.java"],
     deps = [
+        "//src/main/java/com/google/crypto/tink:aead",
+        "//src/main/java/com/google/crypto/tink:key_template",
+        "//src/main/java/com/google/crypto/tink:key_templates",
         "//src/main/java/com/google/crypto/tink:kms_client",
-        "//src/main/java/com/google/crypto/tink:kms_clients",
+        "//src/main/java/com/google/crypto/tink:kms_clients_test_util",
+        "//src/main/java/com/google/crypto/tink:registry_cluster",
+        "//src/main/java/com/google/crypto/tink/aead:aead_config",
+        "//src/main/java/com/google/crypto/tink/aead:kms_aead_key_manager",
+        "//src/main/java/com/google/crypto/tink/aead:kms_envelope_aead",
+        "//src/main/java/com/google/crypto/tink/aead:kms_envelope_aead_key_manager",
+        "//src/main/java/com/google/crypto/tink/aead:predefined_aead_parameters",
         "//src/main/java/com/google/crypto/tink/integration/awskms:aws_kms_client",
+        "//src/main/java/com/google/crypto/tink/integration/awskms:fake_aws_kms",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)
+
+java_test(
+    name = "FakeAwsKmsTest",
+    size = "small",
+    srcs = ["FakeAwsKmsTest.java"],
+    deps = [
+        "//src/main/java/com/google/crypto/tink/aead:aead_config",
+        "//src/main/java/com/google/crypto/tink/integration/awskms:fake_aws_kms",
+        "@maven//:com_amazonaws_aws_java_sdk_core",
+        "@maven//:com_amazonaws_aws_java_sdk_kms",
         "@maven//:com_google_truth_truth",
         "@maven//:junit_junit",
     ],

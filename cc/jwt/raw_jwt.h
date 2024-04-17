@@ -18,11 +18,13 @@
 #define TINK_JWT_RAW_JWT_H_
 
 #include <string>
+#include <vector>
 
 #include "google/protobuf/struct.pb.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/optional.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
 
@@ -37,10 +39,13 @@ class RawJwtParser;
 }  // namespace jwt_internal
 
 ///////////////////////////////////////////////////////////////////////////////
-// A raw JSON Web Token (JWT), https://tools.ietf.org/html/rfc7519.
+// An unsigned JSON Web Token (JWT), https://tools.ietf.org/html/rfc7519.
 //
-// It can be signed or MAC'ed to obtain a compact JWT. It can also be a token
-// that has been parsed from a compact JWT, but not yet verified.
+// It contains all payload claims and a subset of the headers. It does not
+// contain any headers that depend on the key, such as "alg" or "kid", because
+// these headers are chosen when the token is signed and encoded, and should not
+// be chosen by the user. This ensures that the key can be changed without any
+// changes to the user code.
 class RawJwt {
  public:
   RawJwt();
@@ -100,6 +105,8 @@ class RawJwtBuilder {
   RawJwtBuilder& SetTypeHeader(absl::string_view type_header);
   RawJwtBuilder& SetIssuer(absl::string_view issuer);
   RawJwtBuilder& SetSubject(absl::string_view subject);
+  RawJwtBuilder& SetAudience(absl::string_view audience);
+  RawJwtBuilder& SetAudiences(std::vector<std::string> audience);
   RawJwtBuilder& AddAudience(absl::string_view audience);
   RawJwtBuilder& SetJwtId(absl::string_view jwid);
   RawJwtBuilder& WithoutExpiration();
@@ -127,9 +134,6 @@ class RawJwtBuilder {
  private:
   absl::optional<util::Status> error_;
   absl::optional<std::string> type_header_;
-  // absl::optional<absl::Time> expiration_;
-  // absl::optional<absl::Time> not_before_;
-  // absl::optional<absl::Time> issued_at_;
   bool without_expiration_;
   google::protobuf::Struct json_proto_;
 };

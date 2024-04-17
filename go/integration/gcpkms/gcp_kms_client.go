@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 // Package gcpkms provides integration with the GCP Cloud KMS.
 // Tink APIs work with GCP and AWS KMS.
@@ -22,13 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"runtime"
 	"strings"
 
 	"google.golang.org/api/cloudkms/v1"
-	"golang.org/x/oauth2/google"
-	"golang.org/x/oauth2"
+	"google.golang.org/api/option"
 	"github.com/google/tink/go/core/registry"
 	"github.com/google/tink/go/tink"
 )
@@ -50,54 +46,16 @@ type gcpClient struct {
 
 var _ registry.KMSClient = (*gcpClient)(nil)
 
-// NewClient returns a new GCP KMS client which will use default
-// credentials to handle keys with uriPrefix prefix.
+// NewClientWithOptions returns a new GCP KMS client with provided Google API
+// options to handle keys with uriPrefix prefix.
 // uriPrefix must have the following format: 'gcp-kms://[:path]'.
-func NewClient(uriPrefix string) (registry.KMSClient, error) {
+func NewClientWithOptions(ctx context.Context, uriPrefix string, opts ...option.ClientOption) (registry.KMSClient, error) {
 	if !strings.HasPrefix(strings.ToLower(uriPrefix), gcpPrefix) {
 		return nil, fmt.Errorf("uriPrefix must start with %s", gcpPrefix)
 	}
 
-	ctx := context.Background()
-	client, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
-	if err != nil {
-		return nil, err
-	}
-
-	kmsService, err := cloudkms.New(client)
-	if err != nil {
-		return nil, err
-	}
-
-	return &gcpClient{
-		keyURIPrefix: uriPrefix,
-		kms:          kmsService,
-	}, nil
-}
-
-// NewClientWithCredentials returns a new GCP KMS client which will use given
-// credentials to handle keys with uriPrefix prefix.
-// uriPrefix must have the following format: 'gcp-kms://[:path]'.
-func NewClientWithCredentials(uriPrefix string, credentialPath string) (registry.KMSClient, error) {
-	if !strings.HasPrefix(strings.ToLower(uriPrefix), gcpPrefix) {
-		return nil, fmt.Errorf("uriPrefix must start with %s", gcpPrefix)
-	}
-
-	ctx := context.Background()
-	if len(credentialPath) <= 0 {
-		return nil, errCred
-	}
-	data, err := ioutil.ReadFile(credentialPath)
-	if err != nil {
-		return nil, errCred
-	}
-	creds, err := google.CredentialsFromJSON(ctx, data, "https://www.googleapis.com/auth/cloudkms")
-	if err != nil {
-		return nil, errCred
-	}
-	client := oauth2.NewClient(ctx, creds.TokenSource)
-	kmsService, err := cloudkms.New(client)
-	kmsService.UserAgent = tinkUserAgent
+	opts = append(opts, option.WithUserAgent(tinkUserAgent))
+	kmsService, err := cloudkms.NewService(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +77,6 @@ func (c *gcpClient) GetAEAD(keyURI string) (tink.AEAD, error) {
 		return nil, errors.New("unsupported keyURI")
 	}
 
-	uri := strings.TrimPrefix(keyURI, gcpPrefix)
-	return newGCPAEAD(uri, c.kms), nil
+	keyName := strings.TrimPrefix(keyURI, gcpPrefix)
+	return newGCPAEAD(keyName, c.kms), nil
 }

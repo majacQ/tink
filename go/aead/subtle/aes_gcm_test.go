@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-////////////////////////////////////////////////////////////////////////////////
 
 package subtle_test
 
@@ -27,17 +25,26 @@ import (
 	"github.com/google/tink/go/testutil"
 )
 
-var keySizes = []int{16, 32}
+var aesKeySizes = []uint32{
+	16, /*AES-128*/
+	32, /*AES-256*/
+}
 
 // Since the tag size depends on the Seal() function of crypto library,
 // this test checks that the tag size is always 128 bit.
 func TestAESGCMTagLength(t *testing.T) {
-	for _, keySize := range keySizes {
-		key := random.GetRandomBytes(uint32(keySize))
-		a, _ := subtle.NewAESGCM(key)
+	for _, keySize := range aesKeySizes {
+		key := random.GetRandomBytes(keySize)
+		a, err := subtle.NewAESGCM(key)
+		if err != nil {
+			t.Fatalf("subtle.NewAESGCM() err = %q, want nil", err)
+		}
 		ad := random.GetRandomBytes(32)
 		pt := random.GetRandomBytes(32)
-		ct, _ := a.Encrypt(pt, ad)
+		ct, err := a.Encrypt(pt, ad)
+		if err != nil {
+			t.Fatalf("a.Encrypt() err = %q, want nil", err)
+		}
 		actualTagSize := len(ct) - subtle.AESGCMIVSize - len(pt)
 		if actualTagSize != subtle.AESGCMTagSize {
 			t.Errorf("tag size is not 128 bit, it is %d bit", actualTagSize*8)
@@ -46,7 +53,7 @@ func TestAESGCMTagLength(t *testing.T) {
 }
 
 func TestAESGCMKeySize(t *testing.T) {
-	for _, keySize := range keySizes {
+	for _, keySize := range aesKeySizes {
 		if _, err := subtle.NewAESGCM(make([]byte, keySize)); err != nil {
 			t.Errorf("unexpected error when key size is %d btyes", keySize)
 		}
@@ -57,8 +64,8 @@ func TestAESGCMKeySize(t *testing.T) {
 }
 
 func TestAESGCMEncryptDecrypt(t *testing.T) {
-	for _, keySize := range keySizes {
-		key := random.GetRandomBytes(uint32(keySize))
+	for _, keySize := range aesKeySizes {
+		key := random.GetRandomBytes(keySize)
 		a, err := subtle.NewAESGCM(key)
 		if err != nil {
 			t.Errorf("unexpected error when creating new cipher: %s", err)
@@ -86,11 +93,20 @@ func TestAESGCMLongMessages(t *testing.T) {
 	for ptSize <= 1<<24 {
 		pt := random.GetRandomBytes(uint32(ptSize))
 		ad := random.GetRandomBytes(uint32(ptSize / 3))
-		for _, keySize := range keySizes {
-			key := random.GetRandomBytes(uint32(keySize))
-			a, _ := subtle.NewAESGCM(key)
-			ct, _ := a.Encrypt(pt, ad)
-			decrypted, _ := a.Decrypt(ct, ad)
+		for _, keySize := range aesKeySizes {
+			key := random.GetRandomBytes(keySize)
+			a, err := subtle.NewAESGCM(key)
+			if err != nil {
+				t.Fatalf("subtle.NewAESGCM() err = %q, want nil", err)
+			}
+			ct, err := a.Encrypt(pt, ad)
+			if err != nil {
+				t.Fatalf("a.Encrypt() err = %q, want nil", err)
+			}
+			decrypted, err := a.Decrypt(ct, ad)
+			if err != nil {
+				t.Fatalf("a.Decrypt() err = %q, want nil", err)
+			}
 			if !bytes.Equal(pt, decrypted) {
 				t.Errorf("decrypted text and plaintext don't match: keySize %v, ptSize %v", keySize, ptSize)
 			}
@@ -103,8 +119,14 @@ func TestAESGCMModifyCiphertext(t *testing.T) {
 	ad := random.GetRandomBytes(33)
 	key := random.GetRandomBytes(16)
 	pt := random.GetRandomBytes(32)
-	a, _ := subtle.NewAESGCM(key)
-	ct, _ := a.Encrypt(pt, ad)
+	a, err := subtle.NewAESGCM(key)
+	if err != nil {
+		t.Fatalf("subtle.NewAESGCM() err = %q, want nil", err)
+	}
+	ct, err := a.Encrypt(pt, ad)
+	if err != nil {
+		t.Fatalf("a.Encrypt() err = %q, want nil", err)
+	}
 	// flipping bits
 	for i := 0; i < len(ct); i++ {
 		tmp := ct[i]
@@ -122,7 +144,7 @@ func TestAESGCMModifyCiphertext(t *testing.T) {
 			t.Errorf("expect an error ciphertext is truncated until byte %d", i)
 		}
 	}
-	// modify additinal authenticated data
+	// modify associated data
 	for i := 0; i < len(ad); i++ {
 		tmp := ad[i]
 		for j := 0; j < 8; j++ {
@@ -131,6 +153,14 @@ func TestAESGCMModifyCiphertext(t *testing.T) {
 				t.Errorf("expect an error when flipping bit of ad: byte %d, bit %d", i, j)
 			}
 			ad[i] = tmp
+		}
+	}
+	// replace ciphertext with a random string with a small, unacceptable size
+	for _, ctSize := range []uint32{subtle.AESGCMIVSize / 2, subtle.AESGCMIVSize - 1} {
+		smallCT := random.GetRandomBytes(ctSize)
+		emptyAD := []byte{}
+		if _, err := a.Decrypt(smallCT, emptyAD); err == nil {
+			t.Error("Decrypt: got success, want err")
 		}
 	}
 }
@@ -145,10 +175,16 @@ func TestAESGCMRandomNonce(t *testing.T) {
 	key := random.GetRandomBytes(16)
 	pt := []byte{}
 	ad := []byte{}
-	a, _ := subtle.NewAESGCM(key)
+	a, err := subtle.NewAESGCM(key)
+	if err != nil {
+		t.Fatalf("subtle.NewAESGCM() err = %q, want nil", err)
+	}
 	ctSet := make(map[string]bool)
 	for i := 0; i < nSample; i++ {
-		ct, _ := a.Encrypt(pt, ad)
+		ct, err := a.Encrypt(pt, ad)
+		if err != nil {
+			t.Fatalf("a.Encrypt() err = %q, want nil", err)
+		}
 		ctHex := hex.EncodeToString(ct)
 		_, existed := ctSet[ctHex]
 		if existed {

@@ -17,10 +17,13 @@
 #include "tink/subtle/aes_ctr_boringssl.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "tink/config/tink_fips.h"
+#include "absl/status/status.h"
+#include "tink/internal/fips_utils.h"
 #include "tink/subtle/random.h"
 #include "tink/util/secret_data.h"
 #include "tink/util/status.h"
@@ -37,7 +40,7 @@ using ::crypto::tink::test::IsOk;
 using ::crypto::tink::test::StatusIs;
 
 TEST(AesCtrBoringSslTest, TestEncryptDecrypt) {
-  if (IsFipsModeEnabled() && !FIPS_mode()) {
+  if (internal::IsFipsModeEnabled() && !internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test should not run in FIPS mode when BoringCrypto is unavailable.";
   }
@@ -47,18 +50,18 @@ TEST(AesCtrBoringSslTest, TestEncryptDecrypt) {
   int iv_size = 12;
   auto res = AesCtrBoringSsl::New(key, iv_size);
   EXPECT_TRUE(res.ok()) << res.status();
-  auto cipher = std::move(res.ValueOrDie());
+  auto cipher = std::move(res.value());
   std::string message = "Some data to encrypt.";
   auto ct = cipher->Encrypt(message);
   EXPECT_TRUE(ct.ok()) << ct.status();
-  EXPECT_EQ(ct.ValueOrDie().size(), message.size() + iv_size);
-  auto pt = cipher->Decrypt(ct.ValueOrDie());
+  EXPECT_EQ(ct.value().size(), message.size() + iv_size);
+  auto pt = cipher->Decrypt(ct.value());
   EXPECT_TRUE(pt.ok()) << pt.status();
-  EXPECT_EQ(pt.ValueOrDie(), message);
+  EXPECT_EQ(pt.value(), message);
 }
 
 TEST(AesCtrBoringSslTest, TestEncryptDecrypt_randomMessage) {
-  if (IsFipsModeEnabled() && !FIPS_mode()) {
+  if (internal::IsFipsModeEnabled() && !internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test should not run in FIPS mode when BoringCrypto is unavailable.";
   }
@@ -68,20 +71,20 @@ TEST(AesCtrBoringSslTest, TestEncryptDecrypt_randomMessage) {
   int iv_size = 12;
   auto res = AesCtrBoringSsl::New(key, iv_size);
   EXPECT_TRUE(res.ok()) << res.status();
-  auto cipher = std::move(res.ValueOrDie());
+  auto cipher = std::move(res.value());
   for (int i = 0; i < 256; i++) {
     std::string message = Random::GetRandomBytes(i);
     auto ct = cipher->Encrypt(message);
     EXPECT_TRUE(ct.ok()) << ct.status();
-    EXPECT_EQ(ct.ValueOrDie().size(), message.size() + iv_size);
-    auto pt = cipher->Decrypt(ct.ValueOrDie());
+    EXPECT_EQ(ct.value().size(), message.size() + iv_size);
+    auto pt = cipher->Decrypt(ct.value());
     EXPECT_TRUE(pt.ok()) << pt.status();
-    EXPECT_EQ(pt.ValueOrDie(), message);
+    EXPECT_EQ(pt.value(), message);
   }
 }
 
 TEST(AesCtrBoringSslTest, TestEncryptDecrypt_randomKey_randomMessage) {
-  if (IsFipsModeEnabled() && !FIPS_mode()) {
+  if (internal::IsFipsModeEnabled() && !internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test should not run in FIPS mode when BoringCrypto is unavailable.";
   }
@@ -91,19 +94,19 @@ TEST(AesCtrBoringSslTest, TestEncryptDecrypt_randomKey_randomMessage) {
     int iv_size = 12;
     auto res = AesCtrBoringSsl::New(key, iv_size);
     EXPECT_TRUE(res.ok()) << res.status();
-    auto cipher = std::move(res.ValueOrDie());
+    auto cipher = std::move(res.value());
     std::string message = Random::GetRandomBytes(i);
     auto ct = cipher->Encrypt(message);
     EXPECT_TRUE(ct.ok()) << ct.status();
-    EXPECT_EQ(ct.ValueOrDie().size(), message.size() + iv_size);
-    auto pt = cipher->Decrypt(ct.ValueOrDie());
+    EXPECT_EQ(ct.value().size(), message.size() + iv_size);
+    auto pt = cipher->Decrypt(ct.value());
     EXPECT_TRUE(pt.ok()) << pt.status();
-    EXPECT_EQ(pt.ValueOrDie(), message);
+    EXPECT_EQ(pt.value(), message);
   }
 }
 
 TEST(AesCtrBoringSslTest, TestEncryptDecrypt_invalidIvSize) {
-  if (IsFipsModeEnabled() && !FIPS_mode()) {
+  if (internal::IsFipsModeEnabled() && !internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test should not run in FIPS mode when BoringCrypto is unavailable.";
   }
@@ -120,7 +123,7 @@ TEST(AesCtrBoringSslTest, TestEncryptDecrypt_invalidIvSize) {
 }
 
 TEST(AesCtrBoringSslTest, TestNistTestVector) {
-  if (IsFipsModeEnabled() && !FIPS_mode()) {
+  if (internal::IsFipsModeEnabled() && !internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test should not run in FIPS mode when BoringCrypto is unavailable.";
   }
@@ -134,14 +137,14 @@ TEST(AesCtrBoringSslTest, TestNistTestVector) {
   int iv_size = 16;
   auto res = AesCtrBoringSsl::New(key, iv_size);
   EXPECT_TRUE(res.ok()) << res.status();
-  auto cipher = std::move(res.ValueOrDie());
+  auto cipher = std::move(res.value());
   auto pt = cipher->Decrypt(ciphertext);
   EXPECT_TRUE(pt.ok()) << pt.status();
-  EXPECT_EQ(pt.ValueOrDie(), message);
+  EXPECT_EQ(pt.value(), message);
 }
 
 TEST(AesCtrBoringSslTest, TestMultipleEncrypt) {
-  if (IsFipsModeEnabled() && !FIPS_mode()) {
+  if (internal::IsFipsModeEnabled() && !internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test should not run in FIPS mode when BoringCrypto is unavailable.";
   }
@@ -150,15 +153,15 @@ TEST(AesCtrBoringSslTest, TestMultipleEncrypt) {
   int iv_size = 12;
   auto res = AesCtrBoringSsl::New(key, iv_size);
   EXPECT_TRUE(res.ok()) << res.status();
-  auto cipher = std::move(res.ValueOrDie());
+  auto cipher = std::move(res.value());
   std::string message = "Some data to encrypt.";
   auto ct1 = cipher->Encrypt(message);
   auto ct2 = cipher->Encrypt(message);
-  EXPECT_NE(ct1.ValueOrDie(), ct2.ValueOrDie());
+  EXPECT_NE(ct1.value(), ct2.value());
 }
 
 TEST(AesCtrBoringSslTest, TestFipsOnly) {
-  if (IsFipsModeEnabled() && !FIPS_mode()) {
+  if (internal::IsFipsModeEnabled() && !internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test should not run in FIPS mode when BoringCrypto is unavailable.";
   }
@@ -168,12 +171,12 @@ TEST(AesCtrBoringSslTest, TestFipsOnly) {
   util::SecretData key256 = util::SecretDataFromStringView(test::HexDecodeOrDie(
       "000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f"));
 
-  EXPECT_THAT(subtle::AesCtrBoringSsl::New(key128, 16).status(), IsOk());
-  EXPECT_THAT(subtle::AesCtrBoringSsl::New(key256, 16).status(), IsOk());
+  EXPECT_THAT(subtle::AesCtrBoringSsl::New(key128, 16), IsOk());
+  EXPECT_THAT(subtle::AesCtrBoringSsl::New(key256, 16), IsOk());
 }
 
 TEST(AesCtrBoringSslTest, TestFipsFailWithoutBoringCrypto) {
-  if (!IsFipsModeEnabled() || FIPS_mode()) {
+  if (!internal::IsFipsModeEnabled() || internal::IsFipsEnabledInSsl()) {
     GTEST_SKIP()
         << "Test assumes kOnlyUseFips but BoringCrypto is unavailable.";
   }
@@ -184,9 +187,9 @@ TEST(AesCtrBoringSslTest, TestFipsFailWithoutBoringCrypto) {
       "000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f"));
 
   EXPECT_THAT(subtle::AesCtrBoringSsl::New(key128, 16).status(),
-              StatusIs(util::error::INTERNAL));
+              StatusIs(absl::StatusCode::kInternal));
   EXPECT_THAT(subtle::AesCtrBoringSsl::New(key256, 16).status(),
-              StatusIs(util::error::INTERNAL));
+              StatusIs(absl::StatusCode::kInternal));
 }
 
 }  // namespace

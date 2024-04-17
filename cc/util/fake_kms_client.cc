@@ -17,22 +17,33 @@
 
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <ostream>
 #include <sstream>
+#include <string>
+#include <utility>
 
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "tink/aead.h"
 #include "tink/aead/aead_key_templates.h"
 #include "tink/binary_keyset_reader.h"
 #include "tink/binary_keyset_writer.h"
 #include "tink/cleartext_keyset_handle.h"
+#include "tink/config/global_registry.h"
+#include "tink/keyset_handle.h"
 #include "tink/kms_client.h"
+#include "tink/kms_clients.h"
 #include "tink/util/errors.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
+#include "proto/tink.pb.h"
 
 namespace crypto {
 namespace tink {
@@ -65,8 +76,8 @@ StatusOr<std::unique_ptr<FakeKmsClient>> FakeKmsClient::New(
   if (!key_uri.empty()) {
     client->encoded_keyset_ = GetEncodedKeyset(key_uri);
     if (client->encoded_keyset_.empty()) {
-      return ToStatusF(util::error::INVALID_ARGUMENT, "Key '%s' not supported",
-                       key_uri);
+      return ToStatusF(absl::StatusCode::kInvalidArgument,
+                       "Key '%s' not supported", key_uri);
     }
   }
   return std::move(client);
@@ -83,29 +94,30 @@ StatusOr<std::unique_ptr<Aead>> FakeKmsClient::GetAead(
     absl::string_view key_uri) const {
   if (!DoesSupport(key_uri)) {
     if (!encoded_keyset_.empty()) {
-      return ToStatusF(util::error::INVALID_ARGUMENT,
+      return ToStatusF(absl::StatusCode::kInvalidArgument,
                        "This client is bound to a different key, and cannot "
                        "use key '%s'.",
                        key_uri);
     } else {
-      return ToStatusF(util::error::INVALID_ARGUMENT,
+      return ToStatusF(absl::StatusCode::kInvalidArgument,
                        "This client does not support key '%s'.", key_uri);
     }
   }
   std::string keyset;
   if (!absl::WebSafeBase64Unescape(GetEncodedKeyset(key_uri), &keyset)) {
-    return util::Status(util::error::INVALID_ARGUMENT, "Invalid Keyset");
+    return util::Status(absl::StatusCode::kInvalidArgument, "Invalid Keyset");
   }
   auto reader_result = BinaryKeysetReader::New(keyset);
   if (!reader_result.ok()) {
     return reader_result.status();
   }
   auto handle_result =
-      CleartextKeysetHandle::Read(std::move(reader_result.ValueOrDie()));
+      CleartextKeysetHandle::Read(std::move(reader_result.value()));
   if (!handle_result.ok()) {
     return handle_result.status();
   }
-  return handle_result.ValueOrDie()->GetPrimitive<crypto::tink::Aead>();
+  return handle_result.value()->GetPrimitive<crypto::tink::Aead>(
+      ConfigGlobalRegistry());
 }
 
 Status FakeKmsClient::RegisterNewClient(absl::string_view key_uri,
@@ -115,13 +127,14 @@ Status FakeKmsClient::RegisterNewClient(absl::string_view key_uri,
     return client_result.status();
   }
 
-  return KmsClients::Add(std::move(client_result.ValueOrDie()));
+  return KmsClients::Add(std::move(client_result.value()));
 }
 
 StatusOr<std::string> FakeKmsClient::CreateFakeKeyUri() {
   // The key_uri contains an encoded keyset with a new Aes128Gcm key.
   const KeyTemplate& key_template = AeadKeyTemplates::Aes128Gcm();
-  auto handle_result = KeysetHandle::GenerateNew(key_template);
+  auto handle_result =
+      KeysetHandle::GenerateNew(key_template, KeyGenConfigGlobalRegistry());
   if (!handle_result.ok()) {
     return handle_result.status();
   }
@@ -131,8 +144,8 @@ StatusOr<std::string> FakeKmsClient::CreateFakeKeyUri() {
   if (!writer_result.ok()) {
     return writer_result.status();
   }
-  auto status = CleartextKeysetHandle::Write(writer_result.ValueOrDie().get(),
-                                             *handle_result.ValueOrDie());
+  auto status = CleartextKeysetHandle::Write(writer_result.value().get(),
+                                             *handle_result.value());
   if (!status.ok()) {
     return status;
   }

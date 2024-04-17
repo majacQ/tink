@@ -14,15 +14,17 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef TINK_JWT_MAC_H_
-#define TINK_JWT_MAC_H_
+#ifndef TINK_JWT_JWT_MAC_H_
+#define TINK_JWT_JWT_MAC_H_
+
+#include <string>
 
 #include "absl/strings/string_view.h"
-#include "tink/util/status.h"
-#include "tink/util/statusor.h"
+#include "tink/jwt/jwt_validator.h"
 #include "tink/jwt/raw_jwt.h"
 #include "tink/jwt/verified_jwt.h"
-#include "tink/jwt/jwt_validator.h"
+#include "tink/util/status.h"
+#include "tink/util/statusor.h"
 
 namespace crypto {
 namespace tink {
@@ -54,10 +56,10 @@ class JwtMac {
   virtual crypto::tink::util::StatusOr<VerifiedJwt> VerifyMacAndDecode(
       absl::string_view compact, const JwtValidator& validator) const = 0;
 
-  virtual ~JwtMac() {}
+  virtual ~JwtMac() = default;
 };
 
 }  // namespace tink
 }  // namespace crypto
 
-#endif  // TINK_JWT_MAC_H_
+#endif  // TINK_JWT_JWT_MAC_H_

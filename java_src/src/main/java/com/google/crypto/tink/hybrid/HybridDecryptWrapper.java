@@ -1,4 +1,4 @@
-// Copyright 2017 Google Inc.
+// Copyright 2017 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,20 @@ package com.google.crypto.tink.hybrid;
 
 import com.google.crypto.tink.CryptoFormat;
 import com.google.crypto.tink.HybridDecrypt;
-import com.google.crypto.tink.PrimitiveSet;
 import com.google.crypto.tink.PrimitiveWrapper;
-import com.google.crypto.tink.Registry;
+import com.google.crypto.tink.hybrid.internal.LegacyFullHybridDecrypt;
+import com.google.crypto.tink.internal.LegacyProtoKey;
+import com.google.crypto.tink.internal.MonitoringUtil;
+import com.google.crypto.tink.internal.MutableMonitoringRegistry;
+import com.google.crypto.tink.internal.MutablePrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveConstructor;
+import com.google.crypto.tink.internal.PrimitiveRegistry;
+import com.google.crypto.tink.internal.PrimitiveSet;
+import com.google.crypto.tink.monitoring.MonitoringClient;
+import com.google.crypto.tink.monitoring.MonitoringKeysetInfo;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Logger;
 
 /**
  * The implementation of {@code PrimitiveWrapper<HybridDecrypt>}.
@@ -34,13 +41,27 @@ import java.util.logging.Logger;
  * com.google.crypto.tink.proto.OutputPrefixType#RAW}.
  */
 public class HybridDecryptWrapper implements PrimitiveWrapper<HybridDecrypt, HybridDecrypt> {
-  private static final Logger logger = Logger.getLogger(HybridDecryptWrapper.class.getName());
+
+  private static final HybridDecryptWrapper WRAPPER = new HybridDecryptWrapper();
+  private static final PrimitiveConstructor<LegacyProtoKey, HybridDecrypt>
+      LEGACY_PRIMITIVE_CONSTRUCTOR =
+          PrimitiveConstructor.create(
+              LegacyFullHybridDecrypt::create, LegacyProtoKey.class, HybridDecrypt.class);
 
   private static class WrappedHybridDecrypt implements HybridDecrypt {
     private final PrimitiveSet<HybridDecrypt> primitives;
 
+    private final MonitoringClient.Logger decLogger;
+
     public WrappedHybridDecrypt(final PrimitiveSet<HybridDecrypt> primitives) {
       this.primitives = primitives;
+      if (primitives.hasAnnotations()) {
+        MonitoringClient client = MutableMonitoringRegistry.globalInstance().getMonitoringClient();
+        MonitoringKeysetInfo keysetInfo = MonitoringUtil.getMonitoringKeysetInfo(primitives);
+        this.decLogger = client.createLogger(keysetInfo, "hybrid_decrypt", "decrypt");
+      } else {
+        this.decLogger = MonitoringUtil.DO_NOTHING_LOGGER;
+      }
     }
 
     @Override
@@ -48,14 +69,13 @@ public class HybridDecryptWrapper implements PrimitiveWrapper<HybridDecrypt, Hyb
         throws GeneralSecurityException {
       if (ciphertext.length > CryptoFormat.NON_RAW_PREFIX_SIZE) {
         byte[] prefix = Arrays.copyOfRange(ciphertext, 0, CryptoFormat.NON_RAW_PREFIX_SIZE);
-        byte[] ciphertextNoPrefix =
-            Arrays.copyOfRange(ciphertext, CryptoFormat.NON_RAW_PREFIX_SIZE, ciphertext.length);
         List<PrimitiveSet.Entry<HybridDecrypt>> entries = primitives.getPrimitive(prefix);
         for (PrimitiveSet.Entry<HybridDecrypt> entry : entries) {
           try {
-            return entry.getPrimitive().decrypt(ciphertextNoPrefix, contextInfo);
+            byte[] output = entry.getFullPrimitive().decrypt(ciphertext, contextInfo);
+            decLogger.log(entry.getKeyId(), ciphertext.length);
+            return output;
           } catch (GeneralSecurityException e) {
-            logger.info("ciphertext prefix matches a key, but cannot decrypt: " + e.toString());
             continue;
           }
         }
@@ -64,12 +84,15 @@ public class HybridDecryptWrapper implements PrimitiveWrapper<HybridDecrypt, Hyb
       List<PrimitiveSet.Entry<HybridDecrypt>> entries = primitives.getRawPrimitives();
       for (PrimitiveSet.Entry<HybridDecrypt> entry : entries) {
         try {
-          return entry.getPrimitive().decrypt(ciphertext, contextInfo);
+          byte[] output = entry.getFullPrimitive().decrypt(ciphertext, contextInfo);
+          decLogger.log(entry.getKeyId(), ciphertext.length);
+          return output;
         } catch (GeneralSecurityException e) {
           continue;
         }
       }
       // nothing works.
+      decLogger.logFailure();
       throw new GeneralSecurityException("decryption failed");
     }
   }
@@ -98,6 +121,18 @@ public class HybridDecryptWrapper implements PrimitiveWrapper<HybridDecrypt, Hyb
    * argument.
    */
   public static void register() throws GeneralSecurityException {
-    Registry.registerPrimitiveWrapper(new HybridDecryptWrapper());
+    MutablePrimitiveRegistry.globalInstance().registerPrimitiveWrapper(WRAPPER);
+    MutablePrimitiveRegistry.globalInstance()
+        .registerPrimitiveConstructor(LEGACY_PRIMITIVE_CONSTRUCTOR);
+  }
+
+  /**
+   * registerToInternalPrimitiveRegistry is a non-public method (it takes an argument of an
+   * internal-only type) registering an instance of {@code HybridDecryptWrapper} to the provided
+   * {@code PrimitiveRegistry.Builder}.
+   */
+  public static void registerToInternalPrimitiveRegistry(
+      PrimitiveRegistry.Builder primitiveRegistryBuilder) throws GeneralSecurityException {
+    primitiveRegistryBuilder.registerPrimitiveWrapper(WRAPPER);
   }
 }

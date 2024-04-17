@@ -17,6 +17,8 @@
 #ifndef TINK_DAEAD_DETERMINISTIC_AEAD_FACTORY_H_
 #define TINK_DAEAD_DETERMINISTIC_AEAD_FACTORY_H_
 
+#include <memory>
+
 #include "absl/base/macros.h"
 #include "tink/deterministic_aead.h"
 #include "tink/key_manager.h"
@@ -35,6 +37,8 @@ namespace tink {
 // call. This happens automatically if you call one of
 // * DeterministicAeadConfig::Register()
 // * TinkConfig::Register()
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 class ABSL_DEPRECATED(
     "Call getPrimitive<DeterministicAeadFactory>() on the keyset_handle after "
     "registering the DeterministicAeadWrapper instead.")
@@ -55,6 +59,8 @@ class ABSL_DEPRECATED(
  private:
   DeterministicAeadFactory() {}
 };
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace tink
 }  // namespace crypto

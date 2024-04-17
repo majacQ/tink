@@ -16,10 +16,11 @@
 
 #include "tink/config/tink_config.h"
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "tink/aead.h"
 #include "tink/aead/aes_gcm_key_manager.h"
-#include "tink/config.h"
 #include "tink/deterministic_aead.h"
 #include "tink/hybrid_decrypt.h"
 #include "tink/hybrid_encrypt.h"
@@ -41,7 +42,7 @@ using ::crypto::tink::test::StatusIs;
 TEST(TinkConfigTest, RegisterWorks) {
   EXPECT_THAT(Registry::get_key_manager<Aead>(AesGcmKeyManager().get_key_type())
                   .status(),
-              StatusIs(util::error::NOT_FOUND));
+              StatusIs(absl::StatusCode::kNotFound));
   EXPECT_THAT(TinkConfig::Register(), IsOk());
   EXPECT_THAT(Registry::get_key_manager<Aead>(AesGcmKeyManager().get_key_type())
                   .status(),

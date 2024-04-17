@@ -17,6 +17,8 @@
 #ifndef TINK_HYBRID_HYBRID_DECRYPT_FACTORY_H_
 #define TINK_HYBRID_HYBRID_DECRYPT_FACTORY_H_
 
+#include <memory>
+
 #include "absl/base/macros.h"
 #include "tink/hybrid_decrypt.h"
 #include "tink/key_manager.h"
@@ -35,6 +37,8 @@ namespace tink {
 // you call one of
 // * HybridConfig::Register()
 // * TinkConfig::Register()
+// NOLINTBEGIN(whitespace/line_length) (Formatted when commented in)
+// TINK-PENDING-REMOVAL-IN-3.0.0-START
 class ABSL_DEPRECATED(
     "Call getPrimitive<HybridDecrypt>() on the keyset_handle after registering "
     "the HybridDecryptWrapper instead.") HybridDecryptFactory {
@@ -58,6 +62,8 @@ class ABSL_DEPRECATED(
  private:
   HybridDecryptFactory() {}
 };
+// TINK-PENDING-REMOVAL-IN-3.0.0-END
+// NOLINTEND(whitespace/line_length)
 
 }  // namespace tink
 }  // namespace crypto

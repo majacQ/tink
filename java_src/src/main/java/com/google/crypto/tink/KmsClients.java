@@ -19,7 +19,6 @@ package com.google.crypto.tink;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -37,10 +36,19 @@ public final class KmsClients {
   // The list of KmsClients loaded automatically using ServiceLoader.
   private static List<KmsClient> autoClients;
 
-  private static final CopyOnWriteArrayList<KmsClient> clients =
-      new CopyOnWriteArrayList<KmsClient>();
+  private static final CopyOnWriteArrayList<KmsClient> clients = new CopyOnWriteArrayList<>();
 
-  /** Adds a client to the list of known {@link KmsClient}-objects. */
+  /**
+   * Adds a client to the list of known {@link KmsClient}-objects.
+   *
+   * <p>This function will always add the {@code client} to a global list. So this function should
+   * only be called on startup and not on every operation.
+   *
+   * <p>It is often not necessary to use this function. For example, you can call {@link
+   * KmsClient#getAead} to get a remote {@link Aead}. Use this {@link Aead} to encrypt a keyset with
+   * {@link TinkProtoKeysetFormat#serializeEncryptedKeyset}, or to create an envelope {@link Aead}
+   * using {@link com.google.crypto.tink.aead.KmsEnvelopeAead#create}.
+   */
   public static void add(KmsClient client) {
     clients.add(client);
   }
@@ -49,7 +57,7 @@ public final class KmsClients {
    * Returns the first {@link KmsClient} registered with {@link KmsClients#add} that supports {@code
    * keyUri}.
    *
-   * @throws GeneralSecurityException if cannot found any KMS clients that support {@code keyUri}
+   * @throws GeneralSecurityException if no KMS clients can be found that support {@code keyUri}
    */
   public static KmsClient get(String keyUri) throws GeneralSecurityException {
     for (KmsClient client : clients) {
@@ -67,12 +75,12 @@ public final class KmsClients {
    * <p><b>Warning</b> This method searches over the classpath for all implementations of {@link
    * KmsClient}. An attacker that can insert a class in your classpath (e.g., someone controlling a
    * library that you're using) could provide a fake {@link KmsClient} that steal your keys. For
-   * this reason Tink does not use this method. It is used by <a
-   * href="https://github.com/google/tink/tree/master/tools/tinkey">Tinkey</a> which needs to talk
-   * to custom, in-house key management systems.
+   * this reason Tink does not use this method.
    *
+   * @deprecated Don't use this.
    * @throws GeneralSecurityException if cannot found any KMS clients that support {@code keyUri}
    */
+  @Deprecated
   public static synchronized KmsClient getAutoLoaded(String keyUri)
       throws GeneralSecurityException {
     if (autoClients == null) {
@@ -86,13 +94,18 @@ public final class KmsClients {
     throw new GeneralSecurityException("No KMS client does support: " + keyUri);
   }
 
+  static void reset() {
+    clients.clear();
+  }
+
   private static List<KmsClient> loadAutoKmsClients() {
-    List<KmsClient> clients = new ArrayList<KmsClient>();
+    List<KmsClient> clients = new ArrayList<>();
     ServiceLoader<KmsClient> clientLoader = ServiceLoader.load(KmsClient.class);
-    Iterator<KmsClient> i = clientLoader.iterator();
-    while (i.hasNext()) {
-      clients.add(i.next());
+    for (KmsClient element : clientLoader) {
+      clients.add(element);
     }
     return Collections.unmodifiableList(clients);
   }
+
+  private KmsClients() {}
 }

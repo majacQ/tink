@@ -13,9 +13,7 @@ java_library(
 java_library(
     name = "streaming_prf",
     srcs = ["StreamingPrf.java"],
-    deps = [
-        "@maven//:com_google_errorprone_error_prone_annotations",
-    ],
+    deps = ["@maven//:com_google_errorprone_error_prone_annotations"],
 )
 
 java_library(
@@ -33,8 +31,47 @@ java_library(
     srcs = ["HkdfStreamingPrf.java"],
     deps = [
         ":streaming_prf",
+        "//src/main/java/com/google/crypto/tink:accesses_partial_key",
+        "//src/main/java/com/google/crypto/tink:insecure_secret_key_access",
+        "//src/main/java/com/google/crypto/tink/internal:enum_type_proto_converter",
+        "//src/main/java/com/google/crypto/tink/prf:hkdf_prf_key",
+        "//src/main/java/com/google/crypto/tink/prf:hkdf_prf_parameters",
         "//src/main/java/com/google/crypto/tink/subtle:enums",
         "//src/main/java/com/google/crypto/tink/subtle:subtle_util_cluster",
+        "//src/main/java/com/google/crypto/tink/util:bytes",
         "@maven//:com_google_errorprone_error_prone_annotations",
     ],
+)
+
+android_library(
+    name = "hkdf_streaming_prf-android",
+    srcs = ["HkdfStreamingPrf.java"],
+    deps = [
+        ":streaming_prf-android",
+        "//src/main/java/com/google/crypto/tink:accesses_partial_key-android",
+        "//src/main/java/com/google/crypto/tink:insecure_secret_key_access-android",
+        "//src/main/java/com/google/crypto/tink/internal:enum_type_proto_converter-android",
+        "//src/main/java/com/google/crypto/tink/prf:hkdf_prf_key-android",
+        "//src/main/java/com/google/crypto/tink/prf:hkdf_prf_parameters-android",
+        "//src/main/java/com/google/crypto/tink/subtle:enums-android",
+        "//src/main/java/com/google/crypto/tink/subtle:subtle_util_cluster-android",
+        "//src/main/java/com/google/crypto/tink/util:bytes-android",
+        "@maven//:com_google_errorprone_error_prone_annotations",
+    ],
+)
+
+android_library(
+    name = "prf_impl-android",
+    srcs = ["PrfImpl.java"],
+    deps = [
+        ":streaming_prf-android",
+        "//src/main/java/com/google/crypto/tink/prf:prf_set-android",
+        "@maven//:com_google_errorprone_error_prone_annotations",
+    ],
+)
+
+android_library(
+    name = "streaming_prf-android",
+    srcs = ["StreamingPrf.java"],
+    deps = ["@maven//:com_google_errorprone_error_prone_annotations"],
 )
